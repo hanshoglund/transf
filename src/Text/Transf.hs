@@ -8,6 +8,7 @@ module Text.Transf (
   ) where
 
 import Prelude hiding (mapM, readFile, writeFile)         
+import Data.Semigroup
 import Data.Traversable (mapM)
 import Control.Exception
 import Control.Monad.Error hiding (mapM)
@@ -50,24 +51,44 @@ writeFile path str = do
     liftIO $ Prelude.writeFile path str
 
 
-data Transformation = Transformation {
+data Transformation 
+    = CompTrans {
+        decomp    :: [Transformation]
+    }
+    | SingTrans {
         guard     :: (Line -> Bool, Line -> Bool),
         function  :: (Line -> Transf Line)
     }
 
+instance Semigroup Transformation where
+    a <> b = CompTrans [a,b]
+
 censor :: Transformation
-censor = Transformation ((== "<<"), (== ">>")) (return . const "(censored)")
+censor = SingTrans ((== "```censor"), (== "```")) $ \input -> do
+    liftIO $ putStrLn "Censoring!"
+    return "(censored)"
+
+showing :: Transformation
+showing = SingTrans ((== "```print"), (== "```")) $ \input -> do
+    liftIO $ putStrLn "Passing through!"
+    return input
+
+
 
 main = runTransf $ do
     input <- liftIO $ Prelude.readFile "in.md"  
-    output <- runTransformation censor input
+    output <- runTransformation (censor <> showing) input
     liftIO $ Prelude.writeFile "out.md" output
 
 -- foo :: String -> Transf String
 -- foo = return
 
 runTransformation :: Transformation -> String -> Transf String
-runTransformation (Transformation (start,stop) f) as = do
+runTransformation (CompTrans []) as = return as
+runTransformation (CompTrans (t:ts)) as = do
+    bs <- runTransformation t as
+    runTransformation (CompTrans ts) bs
+runTransformation (SingTrans (start,stop) f) as = do
     let bs = (sections start stop . lines $ as) :: [([Line], Maybe [Line])]
     let cs = fmap (first unlines . second (fmap unlines)) $ bs :: [(String, Maybe String)]
     ds <- mapM (secondM (mapM f)) $ cs :: Transf [(String, Maybe String)]
@@ -76,9 +97,6 @@ runTransformation (Transformation (start,stop) f) as = do
 maybeToList (Just a) = [a]
 fromJust (Just a) = a    
 input = Prelude.readFile "in.md"    
-
--- mapMaybeM :: Monad m => (a -> m b) -> (Maybe a) -> m (Maybe b)
-
 
 {-
 readFile     :: RelativePath -> Transf ()
