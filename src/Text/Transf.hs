@@ -20,12 +20,18 @@ type Line = String
 type RelativePath = FilePath
 
 -- | 
-newtype Transf a = Transf { runTransf :: 
+newtype Transf a = Transf { getTransf :: 
     ErrorT 
         String 
         IO a 
     }
     deriving (Monad, MonadPlus, MonadError String, MonadIO)
+
+runTransf :: Transf a -> IO a
+runTransf = liftM fromRight . runErrorT . getTransf
+
+fromRight (Right a) = a
+
 
 -- | Read a file.
 readFile :: RelativePath -> Transf String
@@ -44,12 +50,23 @@ writeFile path str = do
 
 data Transformation = Transformation {
         guard     :: (Line -> Bool, Line -> Bool),
-        function  :: (String -> Transf String)
+        function  :: (Line -> Transf Line)
     }
 
--- runTransformation :: Transformation -> String -> String
--- runTransformation t = do
-    
+censor :: Transformation
+censor = Transformation ((== "<<"), (== ">>")) (\x -> return "XXX")
+
+main = runTransf $ do
+    input <- liftIO $ Prelude.readFile "in.md"  
+    output <- runTransformation censor input
+    liftIO $ Prelude.writeFile "out.md" output
+
+runTransformation :: Transformation -> String -> Transf String
+runTransformation (Transformation (start,stop) f) as = do
+    let bs = (sections start stop . lines $ as) :: [([Line],[Line])]
+    cs <- mapM (secondM (liftM lines . f . unlines)) bs   
+    return $ unlines . concatMap (\(a,b) -> a ++ b) $ cs
+
     
     
 
@@ -73,18 +90,17 @@ data Transformation = Transformation {
 -- | Separate the sections delimited by the separators from their context. Returns
 --      [(outside1, inside1), (outside2, inside2)...] 
 --
--- > 
 sections :: (a -> Bool) -> (a -> Bool) -> [a] -> [([a],[a])]
 sections start stop as = case (bs,cs) of
     ([],[]) -> []    
     (bs, []) -> (bs, [])      : []
-    (bs, cs) -> (bs, tail cs) : between start stop (drop skip as)
+    (bs, cs) -> (bs, tail cs) : sections start stop (drop skip as)
     where
-        (bs,cs) = between1 start stop as                       
+        (bs,cs) = sections1 start stop as                       
         skip    = length bs + length cs + 1
 
-between1 :: (a -> Bool) -> (a -> Bool) -> [a] -> ([a],[a])
-between1 start stop as = 
+sections1 :: (a -> Bool) -> (a -> Bool) -> [a] -> ([a],[a])
+sections1 start stop as = 
     (takeWhile (not . start) as, takeWhile (not . stop) $ dropWhile (not . start) as)
 
 
@@ -118,3 +134,12 @@ between1 start stop as =
 -- the empty list if no such sublist exists.
 filterOnce :: (a -> Bool) -> [a] -> [a]
 filterOnce p = List.takeWhile p . List.dropWhile (not . p)
+
+second f (a, b) = (a, f b)
+
+secondM :: Monad m => (a -> m b) -> (c, a) -> m (c, b)
+secondM f (a, b) = do
+    b' <-  f b
+    return $ (a, b')
+    
+    
