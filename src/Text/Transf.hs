@@ -3,16 +3,18 @@
     GeneralizedNewtypeDeriving 
     #-}
 
-module Text.Transf (
-        -- * Core
-  ) where
+module Text.Transf -- (
+  -- ) 
+where
 
 import Prelude hiding (mapM, readFile, writeFile)         
 import Data.Semigroup
-import Data.Traversable (mapM)
+import Data.Traversable (mapM)     
+import Data.Typeable
 import Control.Exception
 import Control.Monad.Error hiding (mapM)
 import Control.Monad.Plus hiding (mapM)
+import Language.Haskell.Interpreter
 import qualified Prelude as Prelude
 import qualified Data.List as List
 
@@ -24,16 +26,15 @@ type RelativePath = FilePath
 
 -- | 
 newtype Transf a = Transf { getTransf :: 
-    ErrorT 
-        String 
-        IO a 
+    ErrorT String IO a 
     }
     deriving (Monad, MonadPlus, MonadError String, MonadIO)
 
-runTransf :: Transf a -> IO a
-runTransf = liftM fromRight . runErrorT . getTransf
 
-fromRight (Right a) = a
+-- runTransf :: Transf a -> IO a         
+-- runTransf :: Transf a -> IO a
+runTransf :: Transf a -> IO (Either String a)
+runTransf = runErrorT . getTransf
 
 
 -- | Read a file.
@@ -50,6 +51,17 @@ writeFile :: RelativePath -> String -> Transf ()
 writeFile path str = do
     liftIO $ Prelude.writeFile path str
 
+interp :: Typeable a => String -> Transf a
+interp str = do                                         
+    res <- liftIO $ runInterpreter $ do
+        -- loadModules ["Prelude"]
+        setImports ["Prelude", "Music.Prelude.StringQuartet"]
+        interpret str infer
+    case res of
+        Left e -> throwError $ "interp: " ++ show e
+        Right a -> return a
+
+
 
 data Transformation 
     = CompTrans {
@@ -63,22 +75,22 @@ data Transformation
 instance Semigroup Transformation where
     a <> b = CompTrans [a,b]
 
-censor :: Transformation
-censor = SingTrans ((== "```censor"), (== "```")) $ \input -> do
+censorT :: Transformation
+censorT = SingTrans ((== "```censor"), (== "```")) $ \input -> do
     liftIO $ putStrLn "Censoring!"
     return "(censored)"
 
-showing :: Transformation
-showing = SingTrans ((== "```print"), (== "```")) $ \input -> do
+printT :: Transformation
+printT = SingTrans ((== "```print"), (== "```")) $ \input -> do
     liftIO $ putStrLn "Passing through!"
     return input
 
+evalT :: Transformation
+evalT = SingTrans ((== "```eval"), (== "```")) $ \input -> do
+    liftIO $ putStrLn "Evaluating!"
+    res <- interp input
+    return $ res
 
-
-main = runTransf $ do
-    input <- liftIO $ Prelude.readFile "in.md"  
-    output <- runTransformation (censor <> showing) input
-    liftIO $ Prelude.writeFile "out.md" output
 
 -- foo :: String -> Transf String
 -- foo = return
