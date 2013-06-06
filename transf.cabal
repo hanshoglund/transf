@@ -24,6 +24,8 @@ library
         semigroups,
         containers,
         mtl,
+        filepath,
+        process,
         hint
     hs-source-dirs: src
     exposed-modules:
