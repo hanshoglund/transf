@@ -24,10 +24,15 @@ library
         semigroups,
         containers,
         mtl,
+        monadplus,
         filepath,
         process,
         hint
     hs-source-dirs: src
     exposed-modules:
         Text.Transf
-    
+
+executable "transf"
+    ghc-options: -O3 -threaded
+    hs-source-dirs: src
+    main-is: Main.hs
