@@ -7,9 +7,11 @@ module Text.Transf (
         -- * Core
   ) where
 
-import Prelude hiding (readFile, writeFile)         
+import Prelude hiding (mapM, readFile, writeFile)         
+import Data.Traversable (mapM)
 import Control.Exception
-import Control.Monad.Error
+import Control.Monad.Error hiding (mapM)
+import Control.Monad.Plus hiding (mapM)
 import qualified Prelude as Prelude
 import qualified Data.List as List
 
@@ -54,21 +56,29 @@ data Transformation = Transformation {
     }
 
 censor :: Transformation
-censor = Transformation ((== "<<"), (== ">>")) (\x -> return "XXX")
+censor = Transformation ((== "<<"), (== ">>")) (return . const "(censored)")
 
 main = runTransf $ do
     input <- liftIO $ Prelude.readFile "in.md"  
     output <- runTransformation censor input
     liftIO $ Prelude.writeFile "out.md" output
 
+-- foo :: String -> Transf String
+-- foo = return
+
 runTransformation :: Transformation -> String -> Transf String
 runTransformation (Transformation (start,stop) f) as = do
-    let bs = (sections start stop . lines $ as) :: [([Line],[Line])]
-    cs <- mapM (secondM (liftM lines . f . unlines)) bs   
-    return $ unlines . concatMap (\(a,b) -> a ++ b) $ cs
+    let bs = (sections start stop . lines $ as) :: [([Line], Maybe [Line])]
+    let cs = fmap (first unlines . second (fmap unlines)) $ bs :: [(String, Maybe String)]
+    ds <- mapM (secondM (mapM f)) $ cs :: Transf [(String, Maybe String)]
+    return $ concatMap (\(a, b) -> a ++ maybe [] id b ++ "\n") $ ds
 
-    
-    
+maybeToList (Just a) = [a]
+fromJust (Just a) = a    
+input = Prelude.readFile "in.md"    
+
+-- mapMaybeM :: Monad m => (a -> m b) -> (Maybe a) -> m (Maybe b)
+
 
 {-
 readFile     :: RelativePath -> Transf ()
@@ -90,11 +100,12 @@ data Transformation = Transformation {
 -- | Separate the sections delimited by the separators from their context. Returns
 --      [(outside1, inside1), (outside2, inside2)...] 
 --
-sections :: (a -> Bool) -> (a -> Bool) -> [a] -> [([a],[a])]
+sections :: (a -> Bool) -> (a -> Bool) -> [a] -> [([a], Maybe [a])]
 sections start stop as = case (bs,cs) of
-    ([],[]) -> []    
-    (bs, []) -> (bs, [])      : []
-    (bs, cs) -> (bs, tail cs) : sections start stop (drop skip as)
+    ([], [])  -> []    
+    (bs, [])  -> (bs, Nothing) : []
+    (bs, [c]) -> (bs, Nothing) : []
+    (bs, cs)  -> (bs, Just $ tail cs) : sections start stop (drop skip as)
     where
         (bs,cs) = sections1 start stop as                       
         skip    = length bs + length cs + 1
@@ -135,6 +146,7 @@ sections1 start stop as =
 filterOnce :: (a -> Bool) -> [a] -> [a]
 filterOnce p = List.takeWhile p . List.dropWhile (not . p)
 
+first  f (a, b) = (f a, b)
 second f (a, b) = (a, f b)
 
 secondM :: Monad m => (a -> m b) -> (c, a) -> m (c, b)
