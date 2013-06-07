@@ -13,7 +13,7 @@ import Prelude hiding (readFile, writeFile)
 main = do
     res <- runTransf $ do
         input  <- readFile "in.md"  
-        output <- runTransformation (censorT <> printT <> evalT) input
+        output <- runTransformation (censorT <> printT <> evalT <> musicT) input
         writeFile "out.md" output
     case res of
         Left e -> putStrLn $ "Error: " ++ e

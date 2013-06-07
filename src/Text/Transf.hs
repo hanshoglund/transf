@@ -8,6 +8,7 @@ module Text.Transf -- (
 where
 
 import Prelude hiding (mapM, readFile, writeFile)         
+import System.Process
 import Data.Semigroup
 import Data.Traversable (mapM)     
 import Data.Typeable
@@ -17,6 +18,10 @@ import Control.Monad.Plus hiding (mapM)
 import Language.Haskell.Interpreter
 import qualified Prelude as Prelude
 import qualified Data.List as List
+import Data.Hashable
+import Numeric
+
+import Music.Prelude.StringQuartet
 
 -- | A line of text.
 type Line = String
@@ -90,6 +95,16 @@ evalT = SingTrans ((== "```eval"), (== "```")) $ \input -> do
     liftIO $ putStrLn "Evaluating!"
     res <- interp input
     return $ res
+
+musicT :: Transformation
+musicT = SingTrans ((== "```music"), (== "```")) $ \input -> do
+    let name = showHex (abs $ hash input) ""
+    liftIO $ putStrLn "Interpreting music!"
+    music <- interp input :: Transf (Score Note)
+    liftIO $ writeLy (name++".ly") music
+    liftIO $ runCommand $ "lilypond -f png "++name++".ly"
+    liftIO $ runCommand $ "rm "++name++".ly"
+    return $ "![Output]("++name++".png)"
 
 
 -- foo :: String -> Transf String
