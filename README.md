@@ -21,20 +21,6 @@ Transf can then generate the image, and replace the source in the text file with
 
 You can supply your own file names. In the above example, the file name is a 32-bit hash of the source code.
 
-    type Transf
-    instance Monad Transf
-
-    readFile     :: RelativePath -> Transf ()
-    appendFile   :: RelativePath -> String -> Transf ()
-    writeFile    :: RelativePath -> String -> Transf ()
-    writeNewFile :: String -> Transf RelativePath
-    interpret    :: Typeable a => String -> Transf a
-
-    data Transformation = Transformation {
-            transfGuard :: (TextLine -> Bool, TextLine -> Bool),
-            transfProc  :: (String -> Transf String)
-        }
-
 ## Requirements
 
 * [Haskell Platform](http://www.haskell.org/platform)
