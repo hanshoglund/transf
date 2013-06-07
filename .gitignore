@@ -2,3 +2,7 @@ dist
 *.ly
 *.tex
 *.png
+*.eps
+*.tex
+*.texi
+*.count
