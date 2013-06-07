@@ -10,6 +10,7 @@ module Text.Transf (
         -- * Combinators
         Transf,
         newTransf,
+        namedTransf,
         readFile,
         writeFile,
         eval,
@@ -27,7 +28,6 @@ module Text.Transf (
         runTF,
 
         -- * Predefined transformations
-        censorT,
         printT,
         evalT,
         musicT,
@@ -124,6 +124,20 @@ instance Semigroup Transf where
 newTransf :: (Line -> Bool) -> (Line -> Bool) -> (Lines -> TF Lines) -> Transf
 newTransf b e = SingTrans (b, e)
 
+-- | Create a new transformation. 
+--
+--   This transformation processes everything in between lines containing
+--
+--   > ~~~name
+--   > ~~~
+--
+--   or alternatively
+--
+--   > ```name
+--   > ```
+--
+--   where @name@ is the name of the transformation.
+--
 namedTransf :: String -> (Lines -> TF Lines) -> Transf
 namedTransf name f = newTransf (namedGuard name) (namedGuard "") f
 
@@ -134,31 +148,32 @@ namedGuardWithPrefix :: String -> String -> String -> Bool
 namedGuardWithPrefix prefix name = (== (prefix ++ name)) . trimEnd
 
 
-censorT :: Transf
-censorT = namedTransf "censor" $ \input -> do
-    liftIO $ hPutStr stderr "Censoring!\n"
-    return "(censored)"
-
 printT :: Transf
 printT = namedTransf "print" $ \input -> do
-    liftIO $ hPutStr stderr "Passing through!\n"
     return input
 
 evalT :: Transf
 evalT = namedTransf "eval" $ \input -> do
-    liftIO $ hPutStr stderr "Evaluating!\n"
     eval input
 
 musicT :: Transf
 musicT = namedTransf "music" $ \input -> do
     let name = showHex (abs $ hash input) ""
-    liftIO $ hPutStr stderr "Interpreting music!\n"
     music <- eval input :: TF (Score Note)
     liftIO $ writeLy (name++".ly") music
     liftIO $ system $ "lilypond -f png -dresolution=300 "++name++".ly"
     liftIO $ system $ "convert -transparent white -resize 30% "++name++".png "++name++"x.png"
     return $ "![]("++name++"x.png)"
     --  -resize 30%
+
+
+-- | Run a transformation with the given error handler and input.
+runTransf :: Transf -> (String -> IO String) -> String -> IO String
+runTransf t handler input = do
+    res <- runTF $ runTransf' t input
+    case res of
+        Left e  -> handler e
+        Right a -> return a
 
 
 runTransf' :: Transf -> String -> TF String
@@ -173,13 +188,6 @@ runTransf' (SingTrans (start,stop) f) as = do
     let cs = fmap (first unlines . second (fmap unlines)) bs    :: [(String, Maybe String)]
     ds <- mapM (secondM (mapM f)) cs                            :: TF [(String, Maybe String)]    
     return $ concatMap (\(a, b) -> a ++ fromMaybe [] b ++ "\n") ds
-
-runTransf :: Transf -> (String -> IO String) -> String -> IO String
-runTransf t handler input = do
-    res <- runTF $ runTransf' t input
-    case res of
-        Left e  -> handler e
-        Right a -> return a
 
 
 -- | Separate the sections delimited by the separators from their context. Returns

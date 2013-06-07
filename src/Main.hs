@@ -20,7 +20,7 @@ import Prelude hiding (readFile, writeFile)
 
 
 
-version = "transf-0.5"
+version = "transf-0.8"
 header  = "Usage: transf [options]\n" ++
           "Usage: transf [options] files...\n" ++
           "\n" ++
@@ -48,7 +48,7 @@ runFilter _ = transform stdin stdout
 transform fin fout = do
     res <- runTF $ do
         input  <- liftIO $ hGetContents fin  
-        output <- runTransf' (censorT <> printT <> evalT <> musicT) input
+        output <- runTransf' (printT <> evalT <> musicT) input
         liftIO $ hPutStr fout output
     case res of
         Left e -> putStrLn $ "Error: " ++ e

@@ -1,6 +1,6 @@
 
 name:               transf
-version:            0.7
+version:            0.8
 cabal-version:      >= 1.6
 author:             Hans Hoglund
 maintainer:         Hans Hoglund <hans@hanshoglund.se>
