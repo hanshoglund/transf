@@ -31,6 +31,8 @@ module Text.Transf (
         printT,
         evalT,
         musicT,
+        haskellT,
+        musicPlusHaskellT,
         musicExtraT,
 ) 
 where
@@ -118,6 +120,8 @@ data Transf
         function  :: Lines -> TF Lines
     }
 
+doTrans (SingTrans _ f) = f
+
 instance Semigroup Transf where
     a <> b = CompTrans [a,b]
 
@@ -176,14 +180,25 @@ musicExtraT :: Transf
 musicExtraT = namedTransf "music-extra" $ \_ ->
     return $ txt
         where
-            txt = "<script src=\"js/jasmid/stream.js\"></script>" ++
-                  "<script src=\"js/jasmid/midifile.js\"></script>" ++
-                  "<script src=\"js/jasmid/replayer.js\"></script>" ++
-                  "<script src=\"js/midi.js\"></script>" ++
-                  "<script src=\"js/Base64.js\" type=\"text/javascript\"></script>" ++
-                  "<script src=\"js/base64binary.js\" type=\"text/javascript\"></script>" ++
-                  "<script src=\"js/main.js\" type=\"text/javascript\"></script>"
+            txt = "<script src=\"js/jasmid/stream.js\"></script>\n" ++
+                  "<script src=\"js/jasmid/midifile.js\"></script>\n" ++
+                  "<script src=\"js/jasmid/replayer.js\"></script>\n" ++
+                  "<script src=\"js/midi.js\"></script>\n" ++
+                  "<script src=\"js/Base64.js\" type=\"text/javascript\"></script>\n" ++
+                  "<script src=\"js/base64binary.js\" type=\"text/javascript\"></script>\n" ++
+                  "<script src=\"js/main.js\" type=\"text/javascript\"></script>\n"
+
+-- Just pass everything through to Pandoc
+haskellT :: Transf
+haskellT = namedTransf "haskell" $ \input -> do
+    return $ "~~~haskell\n" ++ input ++ "\n~~~"
             
+musicPlusHaskellT :: Transf
+musicPlusHaskellT = namedTransf "music+haskell" $ \input -> do
+    musicRes   <- (doTrans musicT) input
+    haskellRes <- (doTrans haskellT) input
+    return $ musicRes ++ "\n\n" ++ haskellRes
+
 
 -- | Run a transformation with the given error handler and input.
 runTransf :: Transf -> (String -> IO String) -> String -> IO String
