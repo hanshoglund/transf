@@ -26,8 +26,10 @@ library
         mtl,
         monadplus,
         filepath,
-        process,
-        hint
+        process,      
+        hashable,
+        hint,
+        music-preludes
     hs-source-dirs: src
     exposed-modules:
         Text.Transf

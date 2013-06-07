@@ -103,7 +103,7 @@ musicT = SingTrans ((== "```music"), (== "```")) $ \input -> do
     music <- interp input :: Transf (Score Note)
     liftIO $ writeLy (name++".ly") music
     liftIO $ runCommand $ "lilypond -f png "++name++".ly"
-    liftIO $ runCommand $ "rm "++name++".ly"
+    -- liftIO $ runCommand $ "rm "++name++".ly"
     return $ "![Output]("++name++".png)"
 
 
