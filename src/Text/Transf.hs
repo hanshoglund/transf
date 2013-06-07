@@ -20,7 +20,7 @@ import Language.Haskell.Interpreter
 import System.IO (hPutStr, stderr)
 import System.Process
 import Numeric
-import Music.Prelude.StringQuartet
+import Music.Prelude.Basic
 
 import qualified Prelude
 import qualified Data.List as List
@@ -57,7 +57,7 @@ writeFile path str = liftIO $ Prelude.writeFile path str
 interp :: Typeable a => String -> Transf a
 interp str = do                                         
     res <- liftIO $ runInterpreter $ do
-        setImports ["Prelude", "Music.Prelude.StringQuartet"]
+        setImports ["Prelude", "Music.Prelude.Basic"]
         interpret str infer
     case res of
         Left e -> throwError $ "interp: " ++ show e
@@ -96,8 +96,9 @@ musicT = SingTrans ((== "```music"), (== "```")) $ \input -> do
     liftIO $ hPutStr stderr "Interpreting music!\n"
     music <- interp input :: Transf (Score Note)
     liftIO $ writeLy (name++".ly") music
-    liftIO $ runCommand $ "lilypond -f png "++name++".ly"
-    return $ "![Output]("++name++".png)"
+    liftIO $ runCommand $ "lilypond -f png -dresolution=300 "++name++".ly"
+    liftIO $ runCommand $ "convert -resize 30% "++name++".png "++name++"x.png"
+    return $ "![Output]("++name++"x.png)"
 
 
 
@@ -112,7 +113,7 @@ runTransformation (SingTrans (start,stop) f) as = do
     let bs = (sections start stop . lines) as                   :: [([Line], Maybe [Line])]
     let cs = fmap (first unlines . second (fmap unlines)) bs    :: [(String, Maybe String)]
     ds <- mapM (secondM (mapM f)) cs                            :: Transf [(String, Maybe String)]    
-    return $ concatMap (\(a, b) -> a ++ fromMaybe b ++ "\n") ds
+    return $ concatMap (\(a, b) -> a ++ fromMaybe [] b ++ "\n") ds
 
 
 
