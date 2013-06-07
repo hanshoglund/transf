@@ -18,7 +18,7 @@ Transf can then generate the image, and replace the source in the text file with
 
     This is my file. Here is an image:
     
-    A circle](a22b15efb10b.png)
+    ![A circle](a22b15efb10b.png)
 
 You can supply your own file names. In the above example, the file name is a hash of the source code.
 
