@@ -1,9 +1,9 @@
 
 # transf
 
-Transf is functional text transformer and interpreter. 
+Transf is text transformer and Haskell interpreter.
 
-It scans its input for guard tokens and passes everything between to transformation functions. Transformation functions are composed from a small set of combinators and may perform arbirary Haskell computation. Transf contains a full Haskell interpeter and can even interpret its input as Haskell. 
+It scans its input for guard tokens and passes everything between to transformation functions. Transformation functions are composed from a small set of combinators and may perform arbitrary Haskell computation. Transf contains a full Haskell interpret and can even interpret its input as Haskell. 
 
 The main purpose of Transf is to allow the embedding of Domain-Specific Languages in plain text or Markdown files. For example one could use it with Diagrams as follows:
 
@@ -30,3 +30,9 @@ You can supply your own file names. In the above example, the file name is a has
 
     cabal configure
     cabal install
+
+## Usage
+
+### With Pandoc
+
+    (transf OPTIONS | pandoc OPTIONS) <test.md >test.html
