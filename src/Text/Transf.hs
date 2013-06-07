@@ -2,8 +2,29 @@
 {-# LANGUAGE
     GeneralizedNewtypeDeriving #-}
 
-module Text.Transf -- (
-  -- ) 
+module Text.Transf (
+        Line,
+        Lines,
+        RelativePath,
+
+        -- ** TF monad
+        TF,
+        runTF,
+
+        -- ** Transformation
+        Transformation,
+        transformation,
+        readFile,
+        writeFile,
+        eval,
+        inform,
+        censorT,
+        printT,
+        evalT,
+        musicT,
+        runTransformation,
+        runTransformation'
+) 
 where
 
 import Prelude hiding (mapM, readFile, writeFile)         
@@ -16,7 +37,7 @@ import Data.Traversable (mapM)
 import Data.Typeable
 import Data.Hashable
 import Data.Maybe
-import Language.Haskell.Interpreter
+import Language.Haskell.Interpreter hiding (eval)
 import System.IO (hPutStr, stderr)
 import System.Process
 import Numeric
@@ -29,39 +50,45 @@ import qualified Data.List as List
 -- | A line of text.
 type Line = String
 
+-- | Multiple-line text.
+type Lines = String
+
 -- | A relative file path.
 type RelativePath = FilePath
 
 -- | 
-newtype Transf a = Transf { getTransf :: 
+newtype TF a = TF { getTF :: 
     ErrorT String IO a 
     }
     deriving (Monad, MonadPlus, MonadError String, MonadIO)
 
-runTransf :: Transf a -> IO (Either String a)
-runTransf = runErrorT . getTransf
+runTF :: TF a -> IO (Either String a)
+runTF = runErrorT . getTF
 
 -- | Read a file.
-readFile :: RelativePath -> Transf String
+readFile :: RelativePath -> TF String
 readFile path = do
     input <- liftIO $ try $ Prelude.readFile path
     case input of
         Left e  -> throwError $ "readFile: " ++ show (e::SomeException)
         Right a -> return a
 
--- appendFile   :: RelativePath -> String -> Transf ()
+-- appendFile   :: RelativePath -> String -> TF ()
 
-writeFile :: RelativePath -> String -> Transf ()
+writeFile :: RelativePath -> String -> TF ()
 writeFile path str = liftIO $ Prelude.writeFile path str
 
-interp :: Typeable a => String -> Transf a
-interp str = do                                         
+eval :: Typeable a => String -> TF a
+eval str = do                                         
     res <- liftIO $ runInterpreter $ do
         setImports ["Prelude", "Music.Prelude.Basic"]
         interpret str infer
     case res of
-        Left e -> throwError $ "interp: " ++ show e
+        Left e -> throwError $ "eval: " ++ show e
         Right a -> return a
+
+inform :: [Char] -> TF ()
+inform m = liftIO $ hPutStr stderr $ m ++ "\n"
 
 data Transformation 
     = CompTrans {
@@ -69,8 +96,11 @@ data Transformation
     }
     | SingTrans {
         guard     :: (Line -> Bool, Line -> Bool),
-        function  :: Line -> Transf Line
+        function  :: Lines -> TF Lines
     }
+
+transformation :: (Line -> Bool) -> (Line -> Bool) -> (Lines -> TF Lines) -> Transformation
+transformation b e = SingTrans (b, e)
 
 instance Semigroup Transformation where
     a <> b = CompTrans [a,b]
@@ -88,13 +118,13 @@ printT = SingTrans ((== "```print"), (== "```")) $ \input -> do
 evalT :: Transformation
 evalT = SingTrans ((== "```eval"), (== "```")) $ \input -> do
     liftIO $ hPutStr stderr "Evaluating!\n"
-    interp input
+    eval input
 
 musicT :: Transformation
 musicT = SingTrans ((== "```music"), (== "```")) $ \input -> do
     let name = showHex (abs $ hash input) ""
     liftIO $ hPutStr stderr "Interpreting music!\n"
-    music <- interp input :: Transf (Score Note)
+    music <- eval input :: TF (Score Note)
     liftIO $ writeLy (name++".ly") music
     liftIO $ system $ "lilypond -f png -dresolution=300 "++name++".ly"
     liftIO $ system $ "convert -resize 30% "++name++".png "++name++"x.png"
@@ -102,7 +132,7 @@ musicT = SingTrans ((== "```music"), (== "```")) $ \input -> do
 
 
 
-runTransformation :: Transformation -> String -> Transf String
+runTransformation :: Transformation -> String -> TF String
 runTransformation (CompTrans []) as = return as
 
 runTransformation (CompTrans (t:ts)) as = do
@@ -112,10 +142,15 @@ runTransformation (CompTrans (t:ts)) as = do
 runTransformation (SingTrans (start,stop) f) as = do
     let bs = (sections start stop . lines) as                   :: [([Line], Maybe [Line])]
     let cs = fmap (first unlines . second (fmap unlines)) bs    :: [(String, Maybe String)]
-    ds <- mapM (secondM (mapM f)) cs                            :: Transf [(String, Maybe String)]    
+    ds <- mapM (secondM (mapM f)) cs                            :: TF [(String, Maybe String)]    
     return $ concatMap (\(a, b) -> a ++ fromMaybe [] b ++ "\n") ds
 
-
+runTransformation' :: Transformation -> (String -> IO String) -> String -> IO String
+runTransformation' t handler input = do
+    res <- runTF $ runTransformation t input
+    case res of
+        Left e  -> handler e
+        Right a -> return a
 
 
 -- | Separate the sections delimited by the separators from their context. Returns

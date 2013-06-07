@@ -46,7 +46,7 @@ main = do
 runFilter _ = transform stdin stdout
 
 transform fin fout = do
-    res <- runTransf $ do
+    res <- runTF $ do
         input  <- liftIO $ hGetContents fin  
         output <- runTransformation (censorT <> printT <> evalT <> musicT) input
         liftIO $ hPutStr fout output
