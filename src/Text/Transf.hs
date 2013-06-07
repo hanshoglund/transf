@@ -167,8 +167,10 @@ musicT = namedTransf "music" $ \input -> do
     music <- eval input :: TF (Score Note)
     liftIO $ writeLy (name++".ly") music
     liftIO $ writeMidi (name++".mid") music
-    liftIO $ system $ "lilypond -f png -dresolution=300 "++name++".ly"
-    liftIO $ system $ "convert -transparent white -resize 30% "++name++".png "++name++"x.png"
+    -- liftIO $ system $ "lilypond -f png -dresolution=300 "++name++".ly"
+    -- liftIO $ system $ "convert -transparent white -resize 30% "++name++".png "++name++"x.png"
+    liftIO $ system $ "lilypond -f png -dresolution=200 "++name++".ly"
+    liftIO $ system $ "convert -transparent white -resize 50% "++name++".png "++name++"x.png"
     let playText = "<div>" ++
                    "  <a href=\"javascript:playFile('"++name++".mid')\"><img src=\"img/play2.png\"/></a>\n" ++
                    "  <a href=\"javascript:stopPlaying()\"><img src=\"img/pause2.png\"/></a>\n" ++
