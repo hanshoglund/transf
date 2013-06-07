@@ -96,8 +96,8 @@ musicT = SingTrans ((== "```music"), (== "```")) $ \input -> do
     liftIO $ hPutStr stderr "Interpreting music!\n"
     music <- interp input :: Transf (Score Note)
     liftIO $ writeLy (name++".ly") music
-    liftIO $ runCommand $ "lilypond -f png -dresolution=300 "++name++".ly"
-    liftIO $ runCommand $ "convert -resize 30% "++name++".png "++name++"x.png"
+    liftIO $ system $ "lilypond -f png -dresolution=300 "++name++".ly"
+    liftIO $ system $ "convert -resize 30% "++name++".png "++name++"x.png"
     return $ "![Output]("++name++"x.png)"
 
 
