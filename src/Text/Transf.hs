@@ -15,13 +15,14 @@ import Data.Semigroup
 import Data.Traversable (mapM)     
 import Data.Typeable
 import Data.Hashable
+import Data.Maybe
 import Language.Haskell.Interpreter
 import System.IO (hPutStr, stderr)
 import System.Process
 import Numeric
 import Music.Prelude.StringQuartet
 
-import qualified Prelude as Prelude
+import qualified Prelude
 import qualified Data.List as List
 
 
@@ -51,8 +52,7 @@ readFile path = do
 -- appendFile   :: RelativePath -> String -> Transf ()
 
 writeFile :: RelativePath -> String -> Transf ()
-writeFile path str = do
-    liftIO $ Prelude.writeFile path str
+writeFile path str = liftIO $ Prelude.writeFile path str
 
 interp :: Typeable a => String -> Transf a
 interp str = do                                         
@@ -69,7 +69,7 @@ data Transformation
     }
     | SingTrans {
         guard     :: (Line -> Bool, Line -> Bool),
-        function  :: (Line -> Transf Line)
+        function  :: Line -> Transf Line
     }
 
 instance Semigroup Transformation where
@@ -88,8 +88,7 @@ printT = SingTrans ((== "```print"), (== "```")) $ \input -> do
 evalT :: Transformation
 evalT = SingTrans ((== "```eval"), (== "```")) $ \input -> do
     liftIO $ hPutStr stderr "Evaluating!\n"
-    res <- interp input
-    return $ res
+    interp input
 
 musicT :: Transformation
 musicT = SingTrans ((== "```music"), (== "```")) $ \input -> do
@@ -110,10 +109,10 @@ runTransformation (CompTrans (t:ts)) as = do
     runTransformation (CompTrans ts) bs
     
 runTransformation (SingTrans (start,stop) f) as = do
-    let bs = (sections start stop . lines $ as)                 :: [([Line], Maybe [Line])]
-    let cs = fmap (first unlines . second (fmap unlines)) $ bs  :: [(String, Maybe String)]
-    ds <- mapM (secondM (mapM f)) $ cs                          :: Transf [(String, Maybe String)]    
-    return $ concatMap (\(a, b) -> a ++ maybe [] id b ++ "\n") $ ds
+    let bs = (sections start stop . lines) as                   :: [([Line], Maybe [Line])]
+    let cs = fmap (first unlines . second (fmap unlines)) bs    :: [(String, Maybe String)]
+    ds <- mapM (secondM (mapM f)) cs                            :: Transf [(String, Maybe String)]    
+    return $ concatMap (\(a, b) -> a ++ fromMaybe b ++ "\n") ds
 
 
 
@@ -124,8 +123,8 @@ runTransformation (SingTrans (start,stop) f) as = do
 sections :: (a -> Bool) -> (a -> Bool) -> [a] -> [([a], Maybe [a])]
 sections start stop as = case (bs,cs) of
     ([], [])  -> []    
-    (bs, [])  -> (bs, Nothing) : []
-    (bs, [c]) -> (bs, Nothing) : []
+    (bs, [])  -> [(bs, Nothing)]
+    (bs, [c]) -> [(bs, Nothing)]
     (bs, cs)  -> (bs, Just $ tail cs) : sections start stop (drop skip as)
     where
         (bs,cs) = sections1 start stop as                       
@@ -142,6 +141,6 @@ second f (a, b) = (a, f b)
 secondM :: Monad m => (a -> m b) -> (c, a) -> m (c, b)
 secondM f (a, b) = do
     b' <-  f b
-    return $ (a, b')
+    return (a, b')
     
     
