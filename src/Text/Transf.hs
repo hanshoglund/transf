@@ -19,6 +19,7 @@ import Language.Haskell.Interpreter
 import qualified Prelude as Prelude
 import qualified Data.List as List
 import Data.Hashable
+import System.IO (hPutStr, stderr)
 import Numeric
 
 import Music.Prelude.StringQuartet
@@ -82,24 +83,24 @@ instance Semigroup Transformation where
 
 censorT :: Transformation
 censorT = SingTrans ((== "```censor"), (== "```")) $ \input -> do
-    liftIO $ putStrLn "Censoring!"
+    liftIO $ hPutStr stderr "Censoring!\n"
     return "(censored)"
 
 printT :: Transformation
 printT = SingTrans ((== "```print"), (== "```")) $ \input -> do
-    liftIO $ putStrLn "Passing through!"
+    liftIO $ hPutStr stderr "Passing through!\n"
     return input
 
 evalT :: Transformation
 evalT = SingTrans ((== "```eval"), (== "```")) $ \input -> do
-    liftIO $ putStrLn "Evaluating!"
+    liftIO $ hPutStr stderr "Evaluating!\n"
     res <- interp input
     return $ res
 
 musicT :: Transformation
 musicT = SingTrans ((== "```music"), (== "```")) $ \input -> do
     let name = showHex (abs $ hash input) ""
-    liftIO $ putStrLn "Interpreting music!"
+    liftIO $ hPutStr stderr "Interpreting music!\n"
     music <- interp input :: Transf (Score Note)
     liftIO $ writeLy (name++".ly") music
     liftIO $ runCommand $ "lilypond -f png "++name++".ly"
