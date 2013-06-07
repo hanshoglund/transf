@@ -11,8 +11,8 @@ module Text.Transf (
         TF,
         runTF,
 
-        -- ** Transformation
-        Transformation,
+        -- ** Transf
+        Transf,
         transformation,
         readFile,
         writeFile,
@@ -22,8 +22,8 @@ module Text.Transf (
         printT,
         evalT,
         musicT,
-        runTransformation,
-        runTransformation'
+        runTransf,
+        runTransf'
 ) 
 where
 
@@ -90,37 +90,37 @@ eval str = do
 inform :: [Char] -> TF ()
 inform m = liftIO $ hPutStr stderr $ m ++ "\n"
 
-data Transformation 
+data Transf 
     = CompTrans {
-        decomp    :: [Transformation]
+        decomp    :: [Transf]
     }
     | SingTrans {
         guard     :: (Line -> Bool, Line -> Bool),
         function  :: Lines -> TF Lines
     }
 
-transformation :: (Line -> Bool) -> (Line -> Bool) -> (Lines -> TF Lines) -> Transformation
+transformation :: (Line -> Bool) -> (Line -> Bool) -> (Lines -> TF Lines) -> Transf
 transformation b e = SingTrans (b, e)
 
-instance Semigroup Transformation where
+instance Semigroup Transf where
     a <> b = CompTrans [a,b]
 
-censorT :: Transformation
+censorT :: Transf
 censorT = SingTrans ((== "```censor"), (== "```")) $ \input -> do
     liftIO $ hPutStr stderr "Censoring!\n"
     return "(censored)"
 
-printT :: Transformation
+printT :: Transf
 printT = SingTrans ((== "```print"), (== "```")) $ \input -> do
     liftIO $ hPutStr stderr "Passing through!\n"
     return input
 
-evalT :: Transformation
+evalT :: Transf
 evalT = SingTrans ((== "```eval"), (== "```")) $ \input -> do
     liftIO $ hPutStr stderr "Evaluating!\n"
     eval input
 
-musicT :: Transformation
+musicT :: Transf
 musicT = SingTrans ((== "```music"), (== "```")) $ \input -> do
     let name = showHex (abs $ hash input) ""
     liftIO $ hPutStr stderr "Interpreting music!\n"
@@ -132,22 +132,22 @@ musicT = SingTrans ((== "```music"), (== "```")) $ \input -> do
 
 
 
-runTransformation :: Transformation -> String -> TF String
-runTransformation (CompTrans []) as = return as
+runTransf :: Transf -> String -> TF String
+runTransf (CompTrans []) as = return as
 
-runTransformation (CompTrans (t:ts)) as = do
-    bs <- runTransformation t as
-    runTransformation (CompTrans ts) bs
+runTransf (CompTrans (t:ts)) as = do
+    bs <- runTransf t as
+    runTransf (CompTrans ts) bs
     
-runTransformation (SingTrans (start,stop) f) as = do
+runTransf (SingTrans (start,stop) f) as = do
     let bs = (sections start stop . lines) as                   :: [([Line], Maybe [Line])]
     let cs = fmap (first unlines . second (fmap unlines)) bs    :: [(String, Maybe String)]
     ds <- mapM (secondM (mapM f)) cs                            :: TF [(String, Maybe String)]    
     return $ concatMap (\(a, b) -> a ++ fromMaybe [] b ++ "\n") ds
 
-runTransformation' :: Transformation -> (String -> IO String) -> String -> IO String
-runTransformation' t handler input = do
-    res <- runTF $ runTransformation t input
+runTransf' :: Transf -> (String -> IO String) -> String -> IO String
+runTransf' t handler input = do
+    res <- runTF $ runTransf t input
     case res of
         Left e  -> handler e
         Right a -> return a
