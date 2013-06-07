@@ -7,23 +7,30 @@ module Text.Transf (
         Lines,
         RelativePath,
 
-        -- ** TF monad
-        TF,
-        runTF,
-
-        -- ** Transf
+        -- * Combinators
         Transf,
-        transformation,
+        newTransf,
         readFile,
         writeFile,
         eval,
+        eval',
         inform,
+
+        -- ** Runing transformations
+        runTransf,
+        runTransf',
+
+        -- * TF monad
+        TFT,
+        TF,
+        runTFT,
+        runTF,
+
+        -- * Predefined transformations
         censorT,
         printT,
         evalT,
         musicT,
-        runTransf,
-        runTransf'
 ) 
 where
 
@@ -45,6 +52,7 @@ import Music.Prelude.Basic
 
 import qualified Prelude
 import qualified Data.List as List
+import qualified Data.Char as Char
 
 
 -- | A line of text.
@@ -56,14 +64,16 @@ type Lines = String
 -- | A relative file path.
 type RelativePath = FilePath
 
--- | 
-newtype TF a = TF { getTF :: 
-    ErrorT String IO a 
-    }
+-- | Transformer version of 'TF'.
+newtype TFT m a = TFT { runTFT :: ErrorT String m a }
     deriving (Monad, MonadPlus, MonadError String, MonadIO)
 
+-- | The 'TF' monad defines the context of a transformation function.
+--   Think of it as a restricted version of 'IO' or 'STM'.
+type TF = TFT IO
+
 runTF :: TF a -> IO (Either String a)
-runTF = runErrorT . getTF
+runTF = runErrorT . runTFT
 
 -- | Read a file.
 readFile :: RelativePath -> TF String
@@ -75,21 +85,29 @@ readFile path = do
 
 -- appendFile   :: RelativePath -> String -> TF ()
 
+-- | Write to a file.
 writeFile :: RelativePath -> String -> TF ()
 writeFile path str = liftIO $ Prelude.writeFile path str
 
+-- | Evaluate a Haskell expression.
 eval :: Typeable a => String -> TF a
-eval str = do                                         
+eval = eval' ["Prelude", "Music.Prelude.Basic"]
+
+-- | Evaluate a Haskell expression.
+eval' :: Typeable a => [String] -> String -> TF a
+eval' imps str = do                                         
     res <- liftIO $ runInterpreter $ do
-        setImports ["Prelude", "Music.Prelude.Basic"]
+        setImports imps
         interpret str infer
     case res of
         Left e -> throwError $ "eval: " ++ show e
         Right a -> return a
 
-inform :: [Char] -> TF ()
+-- | Write to the standard error stream.
+inform :: String -> TF ()
 inform m = liftIO $ hPutStr stderr $ m ++ "\n"
 
+-- | A transformation function, or transformation for short.
 data Transf 
     = CompTrans {
         decomp    :: [Transf]
@@ -99,55 +117,66 @@ data Transf
         function  :: Lines -> TF Lines
     }
 
-transformation :: (Line -> Bool) -> (Line -> Bool) -> (Lines -> TF Lines) -> Transf
-transformation b e = SingTrans (b, e)
-
 instance Semigroup Transf where
     a <> b = CompTrans [a,b]
 
+-- | Create a new transformation.
+newTransf :: (Line -> Bool) -> (Line -> Bool) -> (Lines -> TF Lines) -> Transf
+newTransf b e = SingTrans (b, e)
+
+namedTransf :: String -> (Lines -> TF Lines) -> Transf
+namedTransf name f = newTransf (namedGuard name) (namedGuard "") f
+
+namedGuard :: String -> String -> Bool
+namedGuard name = namedGuardWithPrefix "```" name `or'` namedGuardWithPrefix "~~~" name
+
+namedGuardWithPrefix :: String -> String -> String -> Bool
+namedGuardWithPrefix prefix name = (== (prefix ++ name)) . trimEnd
+
+
 censorT :: Transf
-censorT = SingTrans ((== "```censor"), (== "```")) $ \input -> do
+censorT = namedTransf "censor" $ \input -> do
     liftIO $ hPutStr stderr "Censoring!\n"
     return "(censored)"
 
 printT :: Transf
-printT = SingTrans ((== "```print"), (== "```")) $ \input -> do
+printT = namedTransf "print" $ \input -> do
     liftIO $ hPutStr stderr "Passing through!\n"
     return input
 
 evalT :: Transf
-evalT = SingTrans ((== "```eval"), (== "```")) $ \input -> do
+evalT = namedTransf "eval" $ \input -> do
     liftIO $ hPutStr stderr "Evaluating!\n"
     eval input
 
 musicT :: Transf
-musicT = SingTrans ((== "```music"), (== "```")) $ \input -> do
+musicT = namedTransf "music" $ \input -> do
     let name = showHex (abs $ hash input) ""
     liftIO $ hPutStr stderr "Interpreting music!\n"
     music <- eval input :: TF (Score Note)
     liftIO $ writeLy (name++".ly") music
     liftIO $ system $ "lilypond -f png -dresolution=300 "++name++".ly"
-    liftIO $ system $ "convert -resize 30% "++name++".png "++name++"x.png"
-    return $ "![Output]("++name++"x.png)"
+    liftIO $ system $ "convert -transparent white -resize 30% "++name++".png "++name++"x.png"
+    return $ "![]("++name++"x.png)"
+    --  -resize 30%
 
 
+runTransf' :: Transf -> String -> TF String
+runTransf' (CompTrans []) as = return as
 
-runTransf :: Transf -> String -> TF String
-runTransf (CompTrans []) as = return as
-
-runTransf (CompTrans (t:ts)) as = do
-    bs <- runTransf t as
-    runTransf (CompTrans ts) bs
+runTransf' (CompTrans (t:ts)) as = do
+    bs <- runTransf' t as
+    runTransf' (CompTrans ts) bs
     
-runTransf (SingTrans (start,stop) f) as = do
+runTransf' (SingTrans (start,stop) f) as = do
     let bs = (sections start stop . lines) as                   :: [([Line], Maybe [Line])]
     let cs = fmap (first unlines . second (fmap unlines)) bs    :: [(String, Maybe String)]
     ds <- mapM (secondM (mapM f)) cs                            :: TF [(String, Maybe String)]    
     return $ concatMap (\(a, b) -> a ++ fromMaybe [] b ++ "\n") ds
 
-runTransf' :: Transf -> (String -> IO String) -> String -> IO String
-runTransf' t handler input = do
-    res <- runTF $ runTransf t input
+runTransf :: Transf -> (String -> IO String) -> String -> IO String
+runTransf t handler input = do
+    res <- runTF $ runTransf' t input
     case res of
         Left e  -> handler e
         Right a -> return a
@@ -174,9 +203,14 @@ sections1 start stop as =
 first  f (a, b) = (f a, b)
 second f (a, b) = (a, f b)
 
+trimEnd :: String -> String
+trimEnd = List.dropWhileEnd Char.isSpace
+
 secondM :: Monad m => (a -> m b) -> (c, a) -> m (c, b)
 secondM f (a, b) = do
     b' <-  f b
     return (a, b')
     
-    
+or' :: (a -> Bool) -> (a -> Bool) -> a -> Bool
+or' p q x = p x || q x    
+
