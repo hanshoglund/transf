@@ -48,7 +48,7 @@ runFilter _ = transform stdin stdout
 transform fin fout = do
     res <- runTF $ do
         input  <- liftIO $ hGetContents fin  
-        output <- runTransf' (printT <> evalT <> musicT) input
+        output <- runTransf' (printT <> evalT <> musicT <> musicExtraT) input
         liftIO $ hPutStr fout output
     case res of
         Left e -> putStrLn $ "Error: " ++ e

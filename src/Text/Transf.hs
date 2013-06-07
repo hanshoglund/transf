@@ -31,6 +31,7 @@ module Text.Transf (
         printT,
         evalT,
         musicT,
+        musicExtraT,
 ) 
 where
 
@@ -91,7 +92,7 @@ writeFile path str = liftIO $ Prelude.writeFile path str
 
 -- | Evaluate a Haskell expression.
 eval :: Typeable a => String -> TF a
-eval = eval' ["Prelude", "Music.Prelude.Basic"]
+eval = eval' ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] -- FIXME
 
 -- | Evaluate a Haskell expression.
 eval' :: Typeable a => [String] -> String -> TF a
@@ -161,11 +162,28 @@ musicT = namedTransf "music" $ \input -> do
     let name = showHex (abs $ hash input) ""
     music <- eval input :: TF (Score Note)
     liftIO $ writeLy (name++".ly") music
+    liftIO $ writeMidi (name++".mid") music
     liftIO $ system $ "lilypond -f png -dresolution=300 "++name++".ly"
     liftIO $ system $ "convert -transparent white -resize 30% "++name++".png "++name++"x.png"
-    return $ "![]("++name++"x.png)"
+    let playText = "<div>" ++
+                   "  <a href=\"javascript:playFile('"++name++".mid')\"><img src=\"img/play2.png\"/></a>\n" ++
+                   "  <a href=\"javascript:stopPlaying()\"><img src=\"img/pause2.png\"/></a>\n" ++
+                   "</div>\n"
+    return $ playText ++ "![]("++name++"x.png)"
     --  -resize 30%
 
+musicExtraT :: Transf
+musicExtraT = namedTransf "music-extra" $ \_ ->
+    return $ txt
+        where
+            txt = "<script src=\"js/jasmid/stream.js\"></script>" ++
+                  "<script src=\"js/jasmid/midifile.js\"></script>" ++
+                  "<script src=\"js/jasmid/replayer.js\"></script>" ++
+                  "<script src=\"js/midi.js\"></script>" ++
+                  "<script src=\"js/Base64.js\" type=\"text/javascript\"></script>" ++
+                  "<script src=\"js/base64binary.js\" type=\"text/javascript\"></script>" ++
+                  "<script src=\"js/main.js\" type=\"text/javascript\"></script>"
+            
 
 -- | Run a transformation with the given error handler and input.
 runTransf :: Transf -> (String -> IO String) -> String -> IO String
