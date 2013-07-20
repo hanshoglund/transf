@@ -54,6 +54,7 @@ library
     hs-source-dirs: src
     exposed-modules:
         Text.Transf
+        Text.Transf.Process
 
 executable "transf"
     ghc-options: -O3 -threaded

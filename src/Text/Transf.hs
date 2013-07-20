@@ -41,8 +41,7 @@ module Text.Transf (
         haskellT,
         musicPlusHaskellT,
         musicExtraT,
-)
-where
+  ) where
 
 import Prelude hiding (mapM, readFile, writeFile)
 
