@@ -140,20 +140,21 @@ instance Monoid Transform where
 newTransform :: (Line -> Bool) -> (Line -> Bool) -> (Lines -> Context Lines) -> Transform
 newTransform b e = SingTrans (b, e)
 
-namedGuard :: String -> String -> Bool
-namedGuard name = namedGuardWithPrefix "```" name `oneOf` namedGuardWithPrefix "~~~" name
+namedFence :: String -> String -> Bool
+namedFence name = namedFenceWithPrefix "```" name `oneOf` namedFenceWithPrefix "~~~" name
 
-namedGuardWithPrefix :: String -> String -> String -> Bool
-namedGuardWithPrefix prefix name = (== (prefix ++ name)) . trimEnd
+namedFenceWithPrefix :: String -> String -> String -> Bool
+namedFenceWithPrefix prefix name = (== (prefix ++ name)) . trimEnd
 
 -- | Create a new transformation.
 --
 --   This transformation processes everything in between lines containing
+--   a fence such as
 --
 --   > ~~~name
 --   > ~~~
 --
---   or alternatively
+--   or
 --
 --   > ```name
 --   > ```
@@ -163,7 +164,7 @@ namedGuardWithPrefix prefix name = (== (prefix ++ name)) . trimEnd
 --   To create a suitable change function, use the combinators defined below.
 --
 transform :: String -> (Lines -> Context Lines) -> Transform
-transform name = newTransform (namedGuard name) (namedGuard "")
+transform name = newTransform (namedFence name) (namedFence "")
 
 -- | 
 -- Run a transformation with the given error handler and input.
@@ -246,14 +247,14 @@ inform m = liftIO $ hPutStr stderr $ m ++ "\n"
 ----------------------------------------------------------------------------------------------------
 
 -- |
--- This named transformer posts its input to the standard error stream
--- and returns the original text (without the delimiters).
+-- This named transformation posts its input to the standard error stream
+-- and returns nothing.
 --
 printT :: Transform
-printT = transform "print" $ \input -> inform input >> return input
+printT = transform "print" $ \input -> inform input >> return ""
 
 -- |
--- This named transformer evaluates its input as a Haskell expression of
+-- This named transformation evaluates its input as a Haskell expression of
 -- type 'String' and returns the value of the expression.
 --
 -- For example the input
@@ -270,7 +271,11 @@ evalT :: Transform
 evalT = transform "eval" $ \input -> evalWith ["Prelude"] input
 
 -- |
--- This named transformer evaluates its input as a music expression.
+-- This named transformation evaluates its input as a music expression.
+--
+-- The music is rendered as an @.ly@ file and a @.mid@ fiel, then @lilypond@ and @convert@
+-- is run to render a @.png@ file. A markdown image tag and a HTML play and stop button
+-- is returned.
 --
 -- The expression must return a value of type @Score Note@. The "Music.Prelude.Basic"
 -- module is implicitly imported.
@@ -292,6 +297,11 @@ musicT = transform "music" $ \input -> do
     return $ playText ++ "![]("++name++"x.png)"
     --  -resize 30%
 
+-- |
+-- This named transformation includes stuff needed for music playback.
+--
+-- It should be used exactly once in the document.
+--
 musicExtraT :: Transform
 musicExtraT = transform "music-extra" $ \_ -> return txt
     where
@@ -303,11 +313,16 @@ musicExtraT = transform "music-extra" $ \_ -> return txt
               "<script src=\"js/base64binary.js\" type=\"text/javascript\"></script>\n" ++
               "<script src=\"js/main.js\" type=\"text/javascript\"></script>\n"
 
--- Just pass everything through to Pandoc
+-- |
+-- This named transformation passes everything through and retains the source.
+-- 
 haskellT :: Transform
 haskellT = transform "haskell" $ \input ->
     return $ "~~~haskell\n" ++ input ++ "\n~~~"
 
+-- |
+-- This named transformation runs the 'music' transformation and retains the source.
+-- 
 musicPlusHaskellT :: Transform
 musicPlusHaskellT = transform "music+haskell" $ \input -> do
     musicRes   <- doTrans musicT input
