@@ -34,10 +34,10 @@ module Text.Transf (
         haskellT,
         musicPlusHaskellT,
         musicExtraT,
-) 
+)
 where
 
-import Prelude hiding (mapM, readFile, writeFile)         
+import Prelude hiding (mapM, readFile, writeFile)
 
 import Control.Exception
 import Control.Monad.Error
@@ -99,7 +99,7 @@ eval = eval' ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] -- FIXME
 
 -- | Evaluate a Haskell expression.
 eval' :: Typeable a => [String] -> String -> TF a
-eval' imps str = do                                         
+eval' imps str = do
     res <- liftIO $ runInterpreter $ do
         setImports imps
         interpret str infer
@@ -112,14 +112,14 @@ inform :: String -> TF ()
 inform m = liftIO $ hPutStr stderr $ m ++ "\n"
 
 -- | A transformation.
-data Transf 
+data Transf
     = CompTrans {
         decomp    :: [Transf]
     }
     | SingTrans {
         guard     :: (Line -> Bool, Line -> Bool),
         function  :: Lines -> TF Lines
-    }       
+    }
 
 doTrans (SingTrans _ f) = f
 
@@ -130,7 +130,7 @@ instance Semigroup Transf where
 newTransf :: (Line -> Bool) -> (Line -> Bool) -> (Lines -> TF Lines) -> Transf
 newTransf b e = SingTrans (b, e)
 
--- | Create a new transformation. 
+-- | Create a new transformation.
 --
 --   This transformation processes everything in between lines containing
 --
@@ -195,7 +195,7 @@ musicExtraT = namedTransf "music-extra" $ \_ -> return txt
 haskellT :: Transf
 haskellT = namedTransf "haskell" $ \input ->
     return $ "~~~haskell\n" ++ input ++ "\n~~~"
-            
+
 musicPlusHaskellT :: Transf
 musicPlusHaskellT = namedTransf "music+haskell" $ \input -> do
     musicRes   <- doTrans musicT input
@@ -222,7 +222,7 @@ runTransf' = go
         go (SingTrans (start,stop) f) as = do
             let bs = (sections start stop . lines) as                   :: [([Line], Maybe [Line])]
             let cs = fmap (first unlines . second (fmap unlines)) bs    :: [(String, Maybe String)]
-            ds <- Traversable.mapM (secondM (Traversable.mapM f)) cs    :: TF [(String, Maybe String)]    
+            ds <- Traversable.mapM (secondM (Traversable.mapM f)) cs    :: TF [(String, Maybe String)]
             return $ concatMap (\(a, b) -> a ++ fromMaybe [] b ++ "\n") ds
 
 
@@ -230,20 +230,20 @@ runTransf' = go
 ----------------------------------------------------------------------------------------------------
 
 -- | Separate the sections delimited by the separators from their context. Returns
---      [(outside1, inside1), (outside2, inside2)...] 
+--      [(outside1, inside1), (outside2, inside2)...]
 --
 sections :: (a -> Bool) -> (a -> Bool) -> [a] -> [([a], Maybe [a])]
 sections start stop as = case (bs,cs) of
-    ([], [])  -> []    
+    ([], [])  -> []
     (bs, [])  -> [(bs, Nothing)]
     (bs, [c]) -> [(bs, Nothing)]
     (bs, cs)  -> (bs, Just $ tail cs) : sections start stop (drop skip as)
     where
-        (bs,cs) = sections1 start stop as                       
+        (bs,cs) = sections1 start stop as
         skip    = length bs + length cs + 1
 
 sections1 :: (a -> Bool) -> (a -> Bool) -> [a] -> ([a],[a])
-sections1 start stop as = 
+sections1 start stop as =
     (takeWhile (not . start) as, takeWhile (not . stop) $ dropWhile (not . start) as)
 
 
@@ -257,7 +257,7 @@ secondM :: Monad m => (a -> m b) -> (c, a) -> m (c, b)
 secondM f (a, b) = do
     b' <-  f b
     return (a, b')
-    
+
 oneOf :: (a -> Bool) -> (a -> Bool) -> a -> Bool
-oneOf p q x = p x || q x    
+oneOf p q x = p x || q x
 
