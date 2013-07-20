@@ -8,18 +8,17 @@ It scans its input for guard tokens and passes everything between to transformat
 The main purpose of Transf is to allow the embedding of Domain-Specific Languages in text or Markdown files. 
 For example one could use it with Diagrams as follows:
 
-> This is my file. Here is an image:
-> 
-> ~~~diagram "A circle!"
-> circle <> stretchX 2 square
-> ~~~
+    This is my file. Here is an image:
+    
+    ~~~diagram "A circle!"
+    circle <> stretchX 2 square
+    ~~~
 
 Transf can then generate the image, and replace the source in the text file with the name of the actual image. It can also include the source.
 
-> This is my file. Here is an image:
-> 
-> ![A circle](a22b15efb10b.png)
->
+    This is my file. Here is an image:
+    
+    ![A circle](a22b15efb10b.png)
 
 You can supply your own file names. In the above example, the file name is a hash of the source code.
 
