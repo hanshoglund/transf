@@ -9,17 +9,17 @@ module Text.Transf (
         RelativePath,
 
         -- * The TF type
-        TFT,
         TF,
-        runTFT,
         runTF,
+        TFT,
+        runTFT,
 
         -- * Transformations
         Transf,
 
-        -- ** Creating new transformations
-        newTransf,
-        namedTransf,
+        -- -- ** Creating new transformations
+        -- newTransf,
+        -- namedTransf,
 
         -- ** Running transformations
         runTransf,
@@ -66,27 +66,40 @@ import qualified Data.List          as List
 import qualified Data.Char          as Char
 import qualified Data.Traversable   as Traversable
 
--- | A line of text.
+-- | 
+-- A line of text.
 type Line = String
 
--- | Multiple-line text.
+-- | 
+-- Multiple-line text.
 type Lines = String
 
--- | A relative file path.
+-- | 
+-- A relative file path.
 type RelativePath = FilePath
 
--- | Transformer version of 'TF'.
-newtype TFT m a = TFT { runTFT :: ErrorT String m a }
+-- | 
+-- Monad transformer version of TF.
+newtype TFT m a = TFT { runTFT' :: ErrorT String m a }
     deriving (Monad, MonadPlus, MonadError String, MonadIO)
 
--- | The 'TF' monad defines the context of a transform.
---   Think of it as a restricted version of 'IO' or 'STM'.
+-- | 
+-- The TF monad defines the context of a transform.
 type TF = TFT IO
 
+-- | 
+-- Run a computation in the TF context.
 runTF :: TF a -> IO (Either String a)
 runTF = runErrorT . runTFT
 
--- | Read a file.
+-- | 
+-- Run a computation in the TFT context.
+runTFT = runTFT'
+
+
+
+-- | 
+-- Read a file.
 readFile :: RelativePath -> TF String
 readFile path = do
     input <- liftIO $ try $ Prelude.readFile path
@@ -96,11 +109,13 @@ readFile path = do
 
 -- appendFile   :: RelativePath -> String -> TF ()
 
--- | Write to a file.
+-- | 
+-- Write to a file.
 writeFile :: RelativePath -> String -> TF ()
 writeFile path str = liftIO $ Prelude.writeFile path str
 
--- | Evaluate a Haskell expression.
+-- | 
+-- Evaluate a Haskell expression.
 eval :: Typeable a => String -> TF a
 eval = evalWith ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] -- FIXME
 
@@ -124,11 +139,13 @@ evalWith imps str = do
         Left e -> throwError $ "eval: " ++ show e
         Right a -> return a
 
--- | Write to the standard error stream.
+-- | 
+-- Write to the standard error stream.
 inform :: String -> TF ()
 inform m = liftIO $ hPutStr stderr $ m ++ "\n"
 
--- | A transformation.
+-- | 
+-- A transformation.
 data Transf
     = CompTrans {
         decomp    :: [Transf]
@@ -142,6 +159,9 @@ doTrans (SingTrans _ f) = f
 
 instance Semigroup Transf where
     a <> b = CompTrans [a,b]
+instance Monoid Transf where
+    mempty  = CompTrans []
+    mappend = (<>)
 
 -- | Create a new transformation. For example:
 --
