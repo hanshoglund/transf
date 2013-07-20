@@ -66,84 +66,45 @@ import qualified Data.List          as List
 import qualified Data.Char          as Char
 import qualified Data.Traversable   as Traversable
 
--- | 
--- A line of text.
+-- |
+-- A single line of text.
+--
 type Line = String
 
--- | 
--- Multiple-line text.
+-- |
+-- Multiple lines of text.
+--
 type Lines = String
 
 -- | 
 -- A relative file path.
+--
 type RelativePath = FilePath
 
 -- | 
 -- Monad transformer version of Context.
+--
 newtype ContextT m a = ContextT { runContextT' :: ErrorT String m a }
     deriving (Monad, MonadPlus, MonadError String, MonadIO)
 
 -- | 
 -- The Context monad defines the context of a transform.
+--
 type Context = ContextT IO
 
--- | 
+-- |
 -- Run a computation in the Context context.
+--
 runContext :: Context a -> IO (Either String a)
 runContext = runErrorT . runContextT
 
--- | 
+-- |
 -- Run a computation in the ContextT context.
+--
+runContextT :: ContextT m a -> ErrorT String m a
 runContextT = runContextT'
 
-
-
--- | 
--- Read a file.
-readFile :: RelativePath -> Context String
-readFile path = do
-    input <- liftIO $ try $ Prelude.readFile path
-    case input of
-        Left e  -> throwError $ "readFile: " ++ show (e::SomeException)
-        Right a -> return a
-
--- appendFile   :: RelativePath -> String -> Context ()
-
--- | 
--- Write to a file.
-writeFile :: RelativePath -> String -> Context ()
-writeFile path str = liftIO $ Prelude.writeFile path str
-
--- | 
--- Evaluate a Haskell expression.
-eval :: Typeable a => String -> Context a
-eval = evalWith ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] -- FIXME
-
--- | Evaluate a Haskell expression with the given modules in scope.
---   Note that "Prelude" is /not/ implicitly imported.
---   
---   
---   All requested modules must be present on the system or the computation
---   will fail. Also, the string must be a valid Haskell expression using
---   constructs which in scope after loading the given modules.
---
---   Errors can be caught using 'catchError'.
---   
-evalWith :: Typeable a => [String] -> String -> Context a
-evalWith imps str = do
-    res <- liftIO $ runInterpreter $ do
-        setImports imps
-        interpret str infer
-    case res of
-        Left e -> throwError $ "eval: " ++ show e
-        Right a -> return a
-
--- | 
--- Write to the standard error stream.
-inform :: String -> Context ()
-inform m = liftIO $ hPutStr stderr $ m ++ "\n"
-
--- | 
+-- |
 -- A transformation.
 data Transform
     = CompTrans {
@@ -175,6 +136,12 @@ instance Monoid Transform where
 newTransform :: (Line -> Bool) -> (Line -> Bool) -> (Lines -> Context Lines) -> Transform
 newTransform b e = SingTrans (b, e)
 
+namedGuard :: String -> String -> Bool
+namedGuard name = namedGuardWithPrefix "```" name `oneOf` namedGuardWithPrefix "~~~" name
+
+namedGuardWithPrefix :: String -> String -> String -> Bool
+namedGuardWithPrefix prefix name = (== (prefix ++ name)) . trimEnd
+
 -- | Create a new transformation.
 --
 --   This transformation processes everything in between lines containing
@@ -194,22 +161,116 @@ newTransform b e = SingTrans (b, e)
 namedTransform :: String -> (Lines -> Context Lines) -> Transform
 namedTransform name = newTransform (namedGuard name) (namedGuard "")
 
-namedGuard :: String -> String -> Bool
-namedGuard name = namedGuardWithPrefix "```" name `oneOf` namedGuardWithPrefix "~~~" name
+-- | 
+-- Run a transformation with the given error handler and input.
+--
+runTransform :: Transform -> (String -> IO String) -> String -> IO String
+runTransform t handler input = do
+    res <- runContext $ runTransform' t input
+    case res of
+        Left e  -> handler e
+        Right a -> return a
 
-namedGuardWithPrefix :: String -> String -> String -> Bool
-namedGuardWithPrefix prefix name = (== (prefix ++ name)) . trimEnd
+-- | 
+-- Run a transformation in the 'Context' monad.
+--
+runTransform' :: Transform -> String -> Context String
+runTransform' = go
+    where
+        go (CompTrans [])     as = return as
+        go (CompTrans (t:ts)) as = do
+            bs <- go t as
+            go (CompTrans ts) bs
+        go (SingTrans (start,stop) f) as = do
+            let bs = (sections start stop . lines) as                   :: [([Line], Maybe [Line])]
+            let cs = fmap (first unlines . second (fmap unlines)) bs    :: [(String, Maybe String)]
+            ds <- Traversable.mapM (secondM (Traversable.mapM f)) cs    :: Context [(String, Maybe String)]
+            return $ concatMap (\(a, b) -> a ++ fromMaybe [] b ++ "\n") ds
 
 ----------------------------------------------------------------------------------------------------
--- Transformormations
+
+-- |
+-- Read a file.
+--
+readFile :: RelativePath -> Context String
+readFile path = do
+    input <- liftIO $ try $ Prelude.readFile path
+    case input of
+        Left e  -> throwError $ "readFile: " ++ show (e::SomeException)
+        Right a -> return a
+
+-- appendFile   :: RelativePath -> String -> Context ()
+
+-- |
+-- Write to a file.
+--
+writeFile :: RelativePath -> String -> Context ()
+writeFile path str = liftIO $ Prelude.writeFile path str
+
+-- |
+-- Evaluate a Haskell expression.
+--
+eval :: Typeable a => String -> Context a
+eval = evalWith ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] -- FIXME
+
+-- | Evaluate a Haskell expression with the given modules in scope.
+--   Note that "Prelude" is /not/ implicitly imported.
+--
+--
+--   All requested modules must be present on the system or the computation
+--   will fail. Also, the string must be a valid Haskell expression using
+--   constructs which in scope after loading the given modules.
+--
+--   Errors can be caught using 'catchError'.
+--
+evalWith :: Typeable a => [String] -> String -> Context a
+evalWith imps str = do
+    res <- liftIO $ runInterpreter $ do
+        setImports imps
+        interpret str infer
+    case res of
+        Left e -> throwError $ "eval: " ++ show e
+        Right a -> return a
+
+-- |
+-- Write to the standard error stream.
+--
+inform :: String -> Context ()
+inform m = liftIO $ hPutStr stderr $ m ++ "\n"
+
+
 ----------------------------------------------------------------------------------------------------
 
+-- |
+-- This named transformer posts its input to the standard error stream
+-- and returns the original text (without the delimiters).
+--
 printT :: Transform
-printT = namedTransform "print" $ \input -> return input
+printT = namedTransform "print" $ \input -> inform input >> return input
 
+-- |
+-- This named transformer evaluates its input as a Haskell expression of
+-- type 'String' and returns the value of the expression.
+--
+-- For example the input
+--
+-- > ~~~haskell
+-- > "The number is " ++ show $ 3 + 2
+-- > ~~~
+--
+-- Will be transformed into
+--
+-- > The number is 6
+--
 evalT :: Transform
-evalT = namedTransform "eval" $ \input -> eval input
+evalT = namedTransform "eval" $ \input -> evalWith ["Prelude"] input
 
+-- |
+-- This named transformer evaluates its input as a music expression.
+--
+-- The expression must return a value of type @Score Note@. The "Music.Prelude.Basic"
+-- module is implicitly imported.
+--
 musicT :: Transform
 musicT = namedTransform "music" $ \input -> do
     let name = showHex (abs $ hash input) ""
@@ -250,30 +311,6 @@ musicPlusHaskellT = namedTransform "music+haskell" $ \input -> do
     return $ musicRes ++ "\n\n" ++ haskellRes
 
 
--- | Run a transformation with the given error handler and input.
-runTransform :: Transform -> (String -> IO String) -> String -> IO String
-runTransform t handler input = do
-    res <- runContext $ runTransform' t input
-    case res of
-        Left e  -> handler e
-        Right a -> return a
-
-
--- | Run a transformation in the 'Context' monad.
-runTransform' :: Transform -> String -> Context String
-runTransform' = go
-    where
-        go (CompTrans [])     as = return as
-        go (CompTrans (t:ts)) as = do
-            bs <- go t as
-            go (CompTrans ts) bs
-        go (SingTrans (start,stop) f) as = do
-            let bs = (sections start stop . lines) as                   :: [([Line], Maybe [Line])]
-            let cs = fmap (first unlines . second (fmap unlines)) bs    :: [(String, Maybe String)]
-            ds <- Traversable.mapM (secondM (Traversable.mapM f)) cs    :: Context [(String, Maybe String)]
-            return $ concatMap (\(a, b) -> a ++ fromMaybe [] b ++ "\n") ds
-
-
 
 ----------------------------------------------------------------------------------------------------
 
@@ -308,4 +345,5 @@ secondM f (a, b) = do
 
 oneOf :: (a -> Bool) -> (a -> Bool) -> a -> Bool
 oneOf p q x = p x || q x
+
 
