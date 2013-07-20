@@ -59,7 +59,6 @@ import qualified Data.List          as List
 import qualified Data.Char          as Char
 import qualified Data.Traversable   as Traversable
 
-
 -- | A line of text.
 type Line = String
 
@@ -73,7 +72,7 @@ type RelativePath = FilePath
 newtype TFT m a = TFT { runTFT :: ErrorT String m a }
     deriving (Monad, MonadPlus, MonadError String, MonadIO)
 
--- | The 'TF' monad defines the context of a transformation function.
+-- | The 'TF' monad defines the context of a transform.
 --   Think of it as a restricted version of 'IO' or 'STM'.
 type TF = TFT IO
 
@@ -112,7 +111,7 @@ eval' imps str = do
 inform :: String -> TF ()
 inform m = liftIO $ hPutStr stderr $ m ++ "\n"
 
--- | A transformation function, or transformation for short.
+-- | A transformation.
 data Transf 
     = CompTrans {
         decomp    :: [Transf]
@@ -120,7 +119,7 @@ data Transf
     | SingTrans {
         guard     :: (Line -> Bool, Line -> Bool),
         function  :: Lines -> TF Lines
-    }
+    }       
 
 doTrans (SingTrans _ f) = f
 
@@ -149,11 +148,14 @@ namedTransf :: String -> (Lines -> TF Lines) -> Transf
 namedTransf name = newTransf (namedGuard name) (namedGuard "")
 
 namedGuard :: String -> String -> Bool
-namedGuard name = namedGuardWithPrefix "```" name `or'` namedGuardWithPrefix "~~~" name
+namedGuard name = namedGuardWithPrefix "```" name `oneOf` namedGuardWithPrefix "~~~" name
 
 namedGuardWithPrefix :: String -> String -> String -> Bool
 namedGuardWithPrefix prefix name = (== (prefix ++ name)) . trimEnd
 
+----------------------------------------------------------------------------------------------------
+-- Transformations
+----------------------------------------------------------------------------------------------------
 
 printT :: Transf
 printT = namedTransf "print" $ \input -> return input
@@ -224,6 +226,9 @@ runTransf' = go
             return $ concatMap (\(a, b) -> a ++ fromMaybe [] b ++ "\n") ds
 
 
+
+----------------------------------------------------------------------------------------------------
+
 -- | Separate the sections delimited by the separators from their context. Returns
 --      [(outside1, inside1), (outside2, inside2)...] 
 --
@@ -253,6 +258,6 @@ secondM f (a, b) = do
     b' <-  f b
     return (a, b')
     
-or' :: (a -> Bool) -> (a -> Bool) -> a -> Bool
-or' p q x = p x || q x    
+oneOf :: (a -> Bool) -> (a -> Bool) -> a -> Bool
+oneOf p q x = p x || q x    
 
