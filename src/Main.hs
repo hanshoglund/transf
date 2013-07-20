@@ -43,12 +43,12 @@ main = do
     runFilter opts
 
 
-runFilter _ = transform stdin stdout
+runFilter _ = run stdin stdout
 
-transform fin fout = do
-    res <- runTF $ do
+run fin fout = do
+    res <- runContext $ do
         input  <- liftIO $ hGetContents fin
-        output <- runTransf' (haskellT <> musicT <> musicPlusHaskellT <> musicExtraT) input
+        output <- runTransform' (haskellT <> musicT <> musicPlusHaskellT <> musicExtraT) input
         liftIO $ hPutStr fout output
     case res of
         Left e -> putStrLn $ "Error: " ++ e

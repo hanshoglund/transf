@@ -18,7 +18,7 @@ module Text.Transf (
         Transform,
 
         -- -- ** Creating new transformations
-        namedTransform,
+        transform,
         -- newTransform,
 
         -- ** Running transformations
@@ -82,30 +82,35 @@ type Lines = String
 type RelativePath = FilePath
 
 -- | 
--- Monad transformer version of Context.
+-- The 'Context' monad defines the context of a transformation.
+--
+-- The main purpose of this type is to restrict the the number
+-- of functions you can pass to 'transform'. 
+--
+type Context = ContextT IO
+
+-- | 
+-- The 'ContextT' monad transformer adds the context of a transformation
+-- to an underlying monad.
 --
 newtype ContextT m a = ContextT { runContextT' :: ErrorT String m a }
     deriving (Monad, MonadPlus, MonadError String, MonadIO)
 
--- | 
--- The Context monad defines the context of a transform.
---
-type Context = ContextT IO
-
 -- |
--- Run a computation in the Context context.
+-- Run a computation in the 'Context' monad.
 --
 runContext :: Context a -> IO (Either String a)
 runContext = runErrorT . runContextT
 
 -- |
--- Run a computation in the ContextT context.
+-- Run a computation in a 'ContextT'-based monad.
 --
 runContextT :: ContextT m a -> ErrorT String m a
 runContextT = runContextT'
 
 -- |
 -- A transformation.
+-- 
 data Transform
     = CompTrans {
         decomp    :: [Transform]
@@ -158,8 +163,8 @@ namedGuardWithPrefix prefix name = (== (prefix ++ name)) . trimEnd
 --
 --   To create a suitable change function, use the combinators defined below.
 --
-namedTransform :: String -> (Lines -> Context Lines) -> Transform
-namedTransform name = newTransform (namedGuard name) (namedGuard "")
+transform :: String -> (Lines -> Context Lines) -> Transform
+transform name = newTransform (namedGuard name) (namedGuard "")
 
 -- | 
 -- Run a transformation with the given error handler and input.
@@ -246,7 +251,7 @@ inform m = liftIO $ hPutStr stderr $ m ++ "\n"
 -- and returns the original text (without the delimiters).
 --
 printT :: Transform
-printT = namedTransform "print" $ \input -> inform input >> return input
+printT = transform "print" $ \input -> inform input >> return input
 
 -- |
 -- This named transformer evaluates its input as a Haskell expression of
@@ -263,7 +268,7 @@ printT = namedTransform "print" $ \input -> inform input >> return input
 -- > The number is 6
 --
 evalT :: Transform
-evalT = namedTransform "eval" $ \input -> evalWith ["Prelude"] input
+evalT = transform "eval" $ \input -> evalWith ["Prelude"] input
 
 -- |
 -- This named transformer evaluates its input as a music expression.
@@ -272,7 +277,7 @@ evalT = namedTransform "eval" $ \input -> evalWith ["Prelude"] input
 -- module is implicitly imported.
 --
 musicT :: Transform
-musicT = namedTransform "music" $ \input -> do
+musicT = transform "music" $ \input -> do
     let name = showHex (abs $ hash input) ""
     music <- eval input :: Context (Score Note)
     liftIO $ writeLy (name++".ly") music
@@ -289,7 +294,7 @@ musicT = namedTransform "music" $ \input -> do
     --  -resize 30%
 
 musicExtraT :: Transform
-musicExtraT = namedTransform "music-extra" $ \_ -> return txt
+musicExtraT = transform "music-extra" $ \_ -> return txt
     where
         txt = "<script src=\"js/jasmid/stream.js\"></script>\n" ++
               "<script src=\"js/jasmid/midifile.js\"></script>\n" ++
@@ -301,11 +306,11 @@ musicExtraT = namedTransform "music-extra" $ \_ -> return txt
 
 -- Just pass everything through to Pandoc
 haskellT :: Transform
-haskellT = namedTransform "haskell" $ \input ->
+haskellT = transform "haskell" $ \input ->
     return $ "~~~haskell\n" ++ input ++ "\n~~~"
 
 musicPlusHaskellT :: Transform
-musicPlusHaskellT = namedTransform "music+haskell" $ \input -> do
+musicPlusHaskellT = transform "music+haskell" $ \input -> do
     musicRes   <- doTrans musicT input
     haskellRes <- doTrans haskellT input
     return $ musicRes ++ "\n\n" ++ haskellRes
