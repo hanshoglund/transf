@@ -27,16 +27,16 @@ header  = "Usage: transf [options]\n" ++
           "Options:"
 
 options = [ 
-    (Option ['h'] ["help"]          (NoArg 1)   "Print help and exit"),
-    (Option ['v'] ["version"]       (NoArg 2)   "Print version and exit")
+    Option ['h'] ["help"]          (NoArg 1)   "Print help and exit",
+    Option ['v'] ["version"]       (NoArg 2)   "Print version and exit"
   ]                                          
     
 main = do
     (opts, args, optErrs) <- getOpt Permute options `fmap` getArgs
 
     let usage = usageInfo header options
-    let printUsage   = putStr (usage ++ "\n")   >> exitWith ExitSuccess
-    let printVersion = putStr (version ++ "\n") >> exitWith ExitSuccess
+    let printUsage   = putStr (usage ++ "\n")   >> exitSuccess
+    let printVersion = putStr (version ++ "\n") >> exitSuccess
 
     when (1 `elem` opts) printUsage
     when (2 `elem` opts) printVersion  

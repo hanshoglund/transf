@@ -40,23 +40,24 @@ where
 import Prelude hiding (mapM, readFile, writeFile)         
 
 import Control.Exception
-import Control.Monad.Error hiding (mapM)
-import Control.Monad.Plus hiding (mapM)
+import Control.Monad.Error
+import Control.Monad.Plus
+import Numeric
+import Data.Maybe
 import Data.Semigroup
-import Data.Traversable (mapM)     
+import Data.Traversable
 import Data.Typeable
 import Data.Hashable
-import Data.Maybe
-import Language.Haskell.Interpreter hiding (eval)
 import System.IO (hPutStr, stderr)
 import System.Process
-import Numeric
-import Music.Prelude.Basic hiding (mapM)
+import Language.Haskell.Interpreter hiding (eval)
+
+import Music.Prelude.Basic
 
 import qualified Prelude
-import qualified Data.List as List
-import qualified Data.Char as Char
-import qualified Data.Traversable as Traversable
+import qualified Data.List          as List
+import qualified Data.Char          as Char
+import qualified Data.Traversable   as Traversable
 
 
 -- | A line of text.
@@ -145,7 +146,7 @@ newTransf b e = SingTrans (b, e)
 --   where @name@ is the name of the transformation.
 --
 namedTransf :: String -> (Lines -> TF Lines) -> Transf
-namedTransf name f = newTransf (namedGuard name) (namedGuard "") f
+namedTransf name = newTransf (namedGuard name) (namedGuard "")
 
 namedGuard :: String -> String -> Bool
 namedGuard name = namedGuardWithPrefix "```" name `or'` namedGuardWithPrefix "~~~" name
@@ -155,12 +156,10 @@ namedGuardWithPrefix prefix name = (== (prefix ++ name)) . trimEnd
 
 
 printT :: Transf
-printT = namedTransf "print" $ \input -> do
-    return input
+printT = namedTransf "print" $ \input -> return input
 
 evalT :: Transf
-evalT = namedTransf "eval" $ \input -> do
-    eval input
+evalT = namedTransf "eval" $ \input -> eval input
 
 musicT :: Transf
 musicT = namedTransf "music" $ \input -> do
@@ -180,26 +179,25 @@ musicT = namedTransf "music" $ \input -> do
     --  -resize 30%
 
 musicExtraT :: Transf
-musicExtraT = namedTransf "music-extra" $ \_ ->
-    return $ txt
-        where
-            txt = "<script src=\"js/jasmid/stream.js\"></script>\n" ++
-                  "<script src=\"js/jasmid/midifile.js\"></script>\n" ++
-                  "<script src=\"js/jasmid/replayer.js\"></script>\n" ++
-                  "<script src=\"js/midi.js\"></script>\n" ++
-                  "<script src=\"js/Base64.js\" type=\"text/javascript\"></script>\n" ++
-                  "<script src=\"js/base64binary.js\" type=\"text/javascript\"></script>\n" ++
-                  "<script src=\"js/main.js\" type=\"text/javascript\"></script>\n"
+musicExtraT = namedTransf "music-extra" $ \_ -> return txt
+    where
+        txt = "<script src=\"js/jasmid/stream.js\"></script>\n" ++
+              "<script src=\"js/jasmid/midifile.js\"></script>\n" ++
+              "<script src=\"js/jasmid/replayer.js\"></script>\n" ++
+              "<script src=\"js/midi.js\"></script>\n" ++
+              "<script src=\"js/Base64.js\" type=\"text/javascript\"></script>\n" ++
+              "<script src=\"js/base64binary.js\" type=\"text/javascript\"></script>\n" ++
+              "<script src=\"js/main.js\" type=\"text/javascript\"></script>\n"
 
 -- Just pass everything through to Pandoc
 haskellT :: Transf
-haskellT = namedTransf "haskell" $ \input -> do
+haskellT = namedTransf "haskell" $ \input ->
     return $ "~~~haskell\n" ++ input ++ "\n~~~"
             
 musicPlusHaskellT :: Transf
 musicPlusHaskellT = namedTransf "music+haskell" $ \input -> do
-    musicRes   <- (doTrans musicT) input
-    haskellRes <- (doTrans haskellT) input
+    musicRes   <- doTrans musicT input
+    haskellRes <- doTrans haskellT input
     return $ musicRes ++ "\n\n" ++ haskellRes
 
 
