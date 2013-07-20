@@ -8,22 +8,22 @@ module Text.Transf (
         Lines,
         RelativePath,
 
-        -- * The TF type
-        TF,
-        runTF,
-        TFT,
-        runTFT,
+        -- * The Context type
+        Context,
+        runContext,
+        ContextT,
+        runContextT,
 
-        -- * Transformations
-        Transf,
+        -- * Transformormations
+        Transform,
 
         -- -- ** Creating new transformations
-        -- newTransf,
-        -- namedTransf,
+        namedTransform,
+        -- newTransform,
 
         -- ** Running transformations
-        runTransf,
-        runTransf',
+        runTransform,
+        runTransform',
 
         -- * Combinators
         -- ** Input/output
@@ -34,7 +34,7 @@ module Text.Transf (
         eval,
         evalWith,
 
-        -- * Transformations
+        -- * Transformormations
         printT,
         evalT,
         musicT,
@@ -79,50 +79,49 @@ type Lines = String
 type RelativePath = FilePath
 
 -- | 
--- Monad transformer version of TF.
-newtype TFT m a = TFT { runTFT' :: ErrorT String m a }
+-- Monad transformer version of Context.
+newtype ContextT m a = ContextT { runContextT' :: ErrorT String m a }
     deriving (Monad, MonadPlus, MonadError String, MonadIO)
 
 -- | 
--- The TF monad defines the context of a transform.
-type TF = TFT IO
+-- The Context monad defines the context of a transform.
+type Context = ContextT IO
 
 -- | 
--- Run a computation in the TF context.
-runTF :: TF a -> IO (Either String a)
-runTF = runErrorT . runTFT
+-- Run a computation in the Context context.
+runContext :: Context a -> IO (Either String a)
+runContext = runErrorT . runContextT
 
 -- | 
--- Run a computation in the TFT context.
-runTFT = runTFT'
+-- Run a computation in the ContextT context.
+runContextT = runContextT'
 
 
 
 -- | 
 -- Read a file.
-readFile :: RelativePath -> TF String
+readFile :: RelativePath -> Context String
 readFile path = do
     input <- liftIO $ try $ Prelude.readFile path
     case input of
         Left e  -> throwError $ "readFile: " ++ show (e::SomeException)
         Right a -> return a
 
--- appendFile   :: RelativePath -> String -> TF ()
+-- appendFile   :: RelativePath -> String -> Context ()
 
 -- | 
 -- Write to a file.
-writeFile :: RelativePath -> String -> TF ()
+writeFile :: RelativePath -> String -> Context ()
 writeFile path str = liftIO $ Prelude.writeFile path str
 
 -- | 
 -- Evaluate a Haskell expression.
-eval :: Typeable a => String -> TF a
+eval :: Typeable a => String -> Context a
 eval = evalWith ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] -- FIXME
 
 -- | Evaluate a Haskell expression with the given modules in scope.
+--   Note that "Prelude" is /not/ implicitly imported.
 --   
---   Note that 'Prelude' is /not/ implicitly imported so it should be included
---   in the import list if you want it to be in scope.
 --   
 --   All requested modules must be present on the system or the computation
 --   will fail. Also, the string must be a valid Haskell expression using
@@ -130,7 +129,7 @@ eval = evalWith ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] -- FIX
 --
 --   Errors can be caught using 'catchError'.
 --   
-evalWith :: Typeable a => [String] -> String -> TF a
+evalWith :: Typeable a => [String] -> String -> Context a
 evalWith imps str = do
     res <- liftIO $ runInterpreter $ do
         setImports imps
@@ -141,31 +140,31 @@ evalWith imps str = do
 
 -- | 
 -- Write to the standard error stream.
-inform :: String -> TF ()
+inform :: String -> Context ()
 inform m = liftIO $ hPutStr stderr $ m ++ "\n"
 
 -- | 
 -- A transformation.
-data Transf
+data Transform
     = CompTrans {
-        decomp    :: [Transf]
+        decomp    :: [Transform]
     }
     | SingTrans {
         delimiters :: (Line -> Bool, Line -> Bool),
-        function   :: Lines -> TF Lines
+        function   :: Lines -> Context Lines
     }
 
 doTrans (SingTrans _ f) = f
 
-instance Semigroup Transf where
+instance Semigroup Transform where
     a <> b = CompTrans [a,b]
-instance Monoid Transf where
+instance Monoid Transform where
     mempty  = CompTrans []
     mappend = (<>)
 
 -- | Create a new transformation. For example:
 --
--- > newTransf start stop change
+-- > newTransform start stop change
 --
 -- This creates a new transformation that searches its input for consecutive
 -- sequences of lines delimited by lines accepted by the @start@ and @stop@
@@ -173,8 +172,8 @@ instance Monoid Transf where
 --
 -- To create a suitable change function, use the combinators defined below.
 --
-newTransf :: (Line -> Bool) -> (Line -> Bool) -> (Lines -> TF Lines) -> Transf
-newTransf b e = SingTrans (b, e)
+newTransform :: (Line -> Bool) -> (Line -> Bool) -> (Lines -> Context Lines) -> Transform
+newTransform b e = SingTrans (b, e)
 
 -- | Create a new transformation.
 --
@@ -192,8 +191,8 @@ newTransf b e = SingTrans (b, e)
 --
 --   To create a suitable change function, use the combinators defined below.
 --
-namedTransf :: String -> (Lines -> TF Lines) -> Transf
-namedTransf name = newTransf (namedGuard name) (namedGuard "")
+namedTransform :: String -> (Lines -> Context Lines) -> Transform
+namedTransform name = newTransform (namedGuard name) (namedGuard "")
 
 namedGuard :: String -> String -> Bool
 namedGuard name = namedGuardWithPrefix "```" name `oneOf` namedGuardWithPrefix "~~~" name
@@ -202,19 +201,19 @@ namedGuardWithPrefix :: String -> String -> String -> Bool
 namedGuardWithPrefix prefix name = (== (prefix ++ name)) . trimEnd
 
 ----------------------------------------------------------------------------------------------------
--- Transformations
+-- Transformormations
 ----------------------------------------------------------------------------------------------------
 
-printT :: Transf
-printT = namedTransf "print" $ \input -> return input
+printT :: Transform
+printT = namedTransform "print" $ \input -> return input
 
-evalT :: Transf
-evalT = namedTransf "eval" $ \input -> eval input
+evalT :: Transform
+evalT = namedTransform "eval" $ \input -> eval input
 
-musicT :: Transf
-musicT = namedTransf "music" $ \input -> do
+musicT :: Transform
+musicT = namedTransform "music" $ \input -> do
     let name = showHex (abs $ hash input) ""
-    music <- eval input :: TF (Score Note)
+    music <- eval input :: Context (Score Note)
     liftIO $ writeLy (name++".ly") music
     liftIO $ writeMidi (name++".mid") music
     -- liftIO $ system $ "lilypond -f png -dresolution=300 "++name++".ly"
@@ -228,8 +227,8 @@ musicT = namedTransf "music" $ \input -> do
     return $ playText ++ "![]("++name++"x.png)"
     --  -resize 30%
 
-musicExtraT :: Transf
-musicExtraT = namedTransf "music-extra" $ \_ -> return txt
+musicExtraT :: Transform
+musicExtraT = namedTransform "music-extra" $ \_ -> return txt
     where
         txt = "<script src=\"js/jasmid/stream.js\"></script>\n" ++
               "<script src=\"js/jasmid/midifile.js\"></script>\n" ++
@@ -240,28 +239,29 @@ musicExtraT = namedTransf "music-extra" $ \_ -> return txt
               "<script src=\"js/main.js\" type=\"text/javascript\"></script>\n"
 
 -- Just pass everything through to Pandoc
-haskellT :: Transf
-haskellT = namedTransf "haskell" $ \input ->
+haskellT :: Transform
+haskellT = namedTransform "haskell" $ \input ->
     return $ "~~~haskell\n" ++ input ++ "\n~~~"
 
-musicPlusHaskellT :: Transf
-musicPlusHaskellT = namedTransf "music+haskell" $ \input -> do
+musicPlusHaskellT :: Transform
+musicPlusHaskellT = namedTransform "music+haskell" $ \input -> do
     musicRes   <- doTrans musicT input
     haskellRes <- doTrans haskellT input
     return $ musicRes ++ "\n\n" ++ haskellRes
 
 
 -- | Run a transformation with the given error handler and input.
-runTransf :: Transf -> (String -> IO String) -> String -> IO String
-runTransf t handler input = do
-    res <- runTF $ runTransf' t input
+runTransform :: Transform -> (String -> IO String) -> String -> IO String
+runTransform t handler input = do
+    res <- runContext $ runTransform' t input
     case res of
         Left e  -> handler e
         Right a -> return a
 
 
-runTransf' :: Transf -> String -> TF String
-runTransf' = go
+-- | Run a transformation in the 'Context' monad.
+runTransform' :: Transform -> String -> Context String
+runTransform' = go
     where
         go (CompTrans [])     as = return as
         go (CompTrans (t:ts)) as = do
@@ -270,7 +270,7 @@ runTransf' = go
         go (SingTrans (start,stop) f) as = do
             let bs = (sections start stop . lines) as                   :: [([Line], Maybe [Line])]
             let cs = fmap (first unlines . second (fmap unlines)) bs    :: [(String, Maybe String)]
-            ds <- Traversable.mapM (secondM (Traversable.mapM f)) cs    :: TF [(String, Maybe String)]
+            ds <- Traversable.mapM (secondM (Traversable.mapM f)) cs    :: Context [(String, Maybe String)]
             return $ concatMap (\(a, b) -> a ++ fromMaybe [] b ++ "\n") ds
 
 

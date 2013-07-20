@@ -12,11 +12,12 @@ tested-with:        GHC
 build-type:         Simple
 
 description: 
-    Transf is functional text transformer and interpreter. 
+    /Transf/ is functional text transformer and interpreter.
     .
     It scans its input for guard tokens and passes everything between to transformation functions. Transformation functions are composed from a small set of combinators and may perform arbirary Haskell computation. Transf contains a full Haskell interpeter and can even interpret its input as Haskell. 
     .
-    The main purpose of Transf is to allow the embedding of Domain-Specific Languages in plain text or Markdown files. For example one could use it with Diagrams as follows:
+    The main purpose of Transf is to allow the embedding of Domain-Specific Languages in text or Markdown files. 
+    For example one could use it with Diagrams as follows:
     .
     > This is my file. Here is an image:
     > 
