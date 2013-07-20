@@ -3,31 +3,38 @@
     GeneralizedNewtypeDeriving #-}
 
 module Text.Transf (
+        -- * Basic types
         Line,
         Lines,
         RelativePath,
 
-        -- * Combinators
-        Transf,
-        newTransf,
-        namedTransf,
-        readFile,
-        writeFile,
-        eval,
-        eval',
-        inform,
-
-        -- ** Runing transformations
-        runTransf,
-        runTransf',
-
-        -- * TF monad
+        -- * The TF type
         TFT,
         TF,
         runTFT,
         runTF,
 
-        -- * Predefined transformations
+        -- * Transformations
+        Transf,
+
+        -- ** Creating new transformations
+        newTransf,
+        namedTransf,
+
+        -- ** Running transformations
+        runTransf,
+        runTransf',
+
+        -- * Combinators
+        -- ** Input/output
+        readFile,
+        writeFile,
+        inform,
+        -- ** Evaluation
+        eval,
+        evalWith,
+
+        -- * Transformations
         printT,
         evalT,
         musicT,
@@ -95,11 +102,21 @@ writeFile path str = liftIO $ Prelude.writeFile path str
 
 -- | Evaluate a Haskell expression.
 eval :: Typeable a => String -> TF a
-eval = eval' ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] -- FIXME
+eval = evalWith ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] -- FIXME
 
--- | Evaluate a Haskell expression.
-eval' :: Typeable a => [String] -> String -> TF a
-eval' imps str = do
+-- | Evaluate a Haskell expression with the given modules in scope.
+--   
+--   Note that 'Prelude' is /not/ implicitly imported so it should be included
+--   in the import list if you want it to be in scope.
+--   
+--   All requested modules must be present on the system or the computation
+--   will fail. Also, the string must be a valid Haskell expression using
+--   constructs which in scope after loading the given modules.
+--
+--   Errors can be caught using 'catchError'.
+--   
+evalWith :: Typeable a => [String] -> String -> TF a
+evalWith imps str = do
     res <- liftIO $ runInterpreter $ do
         setImports imps
         interpret str infer
@@ -117,8 +134,8 @@ data Transf
         decomp    :: [Transf]
     }
     | SingTrans {
-        guard     :: (Line -> Bool, Line -> Bool),
-        function  :: Lines -> TF Lines
+        delimiters :: (Line -> Bool, Line -> Bool),
+        function   :: Lines -> TF Lines
     }
 
 doTrans (SingTrans _ f) = f
@@ -126,7 +143,16 @@ doTrans (SingTrans _ f) = f
 instance Semigroup Transf where
     a <> b = CompTrans [a,b]
 
--- | Create a new transformation.
+-- | Create a new transformation. For example:
+--
+-- > newTransf start stop change
+--
+-- This creates a new transformation that searches its input for consecutive
+-- sequences of lines delimited by lines accepted by the @start@ and @stop@
+-- functions, and applies the given change function to these chunks.
+--
+-- To create a suitable change function, use the combinators defined below.
+--
 newTransf :: (Line -> Bool) -> (Line -> Bool) -> (Lines -> TF Lines) -> Transf
 newTransf b e = SingTrans (b, e)
 
@@ -143,6 +169,8 @@ newTransf b e = SingTrans (b, e)
 --   > ```
 --
 --   where @name@ is the name of the transformation.
+--
+--   To create a suitable change function, use the combinators defined below.
 --
 namedTransf :: String -> (Lines -> TF Lines) -> Transf
 namedTransf name = newTransf (namedGuard name) (namedGuard "")
