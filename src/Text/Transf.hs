@@ -51,11 +51,12 @@ import Language.Haskell.Interpreter hiding (eval)
 import System.IO (hPutStr, stderr)
 import System.Process
 import Numeric
-import Music.Prelude.Basic
+import Music.Prelude.Basic hiding (mapM)
 
 import qualified Prelude
 import qualified Data.List as List
 import qualified Data.Char as Char
+import qualified Data.Traversable as Traversable
 
 
 -- | A line of text.
@@ -212,17 +213,17 @@ runTransf t handler input = do
 
 
 runTransf' :: Transf -> String -> TF String
-runTransf' (CompTrans []) as = return as
-
-runTransf' (CompTrans (t:ts)) as = do
-    bs <- runTransf' t as
-    runTransf' (CompTrans ts) bs
-    
-runTransf' (SingTrans (start,stop) f) as = do
-    let bs = (sections start stop . lines) as                   :: [([Line], Maybe [Line])]
-    let cs = fmap (first unlines . second (fmap unlines)) bs    :: [(String, Maybe String)]
-    ds <- mapM (secondM (mapM f)) cs                            :: TF [(String, Maybe String)]    
-    return $ concatMap (\(a, b) -> a ++ fromMaybe [] b ++ "\n") ds
+runTransf' = go
+    where
+        go (CompTrans [])     as = return as
+        go (CompTrans (t:ts)) as = do
+            bs <- go t as
+            go (CompTrans ts) bs
+        go (SingTrans (start,stop) f) as = do
+            let bs = (sections start stop . lines) as                   :: [([Line], Maybe [Line])]
+            let cs = fmap (first unlines . second (fmap unlines)) bs    :: [(String, Maybe String)]
+            ds <- Traversable.mapM (secondM (Traversable.mapM f)) cs    :: TF [(String, Maybe String)]    
+            return $ concatMap (\(a, b) -> a ++ fromMaybe [] b ++ "\n") ds
 
 
 -- | Separate the sections delimited by the separators from their context. Returns

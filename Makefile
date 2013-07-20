@@ -1,12 +1,12 @@
 
 TRANSF_OPTIONS =
-PANDOC_OPTIONS = -s --toc -cstyles.css -s -t html --highlight-style=zenburn
+PANDOC_OPTIONS = -s --toc -cstyles.css -s -t html --highlight-style=espresso
 
 make:
 	rm -f *.png
 	rm -f *.mid
 	( transf $(TRANSF_OPTIONS) | pandoc $(PANDOC_OPTIONS) ) <test.md >test.html
-	rm -f *.ly
+	# rm -f *.ly
 	rm -f *.eps	
 	rm -f *.count
 	rm -f *.tex
