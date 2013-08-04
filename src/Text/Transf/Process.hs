@@ -41,7 +41,7 @@ defaultMain name transf = do
     when (2 `elem` opts) printVersion
     runFilter transf opts
 
-version name = name ++ "-0.8"
+version name = name ++ "-0.9"
 header  name = "Usage: "++name++" [options]\n" ++
                "Usage: "++name++" [options] files...\n" ++
                "\n" ++
