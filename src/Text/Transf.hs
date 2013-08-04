@@ -323,7 +323,7 @@ musicExtraT = transform "music-extra" $ \_ -> return txt
 -- 
 haskellT :: Transform
 haskellT = transform "haskell" $ \input ->
-    return $ "~~~haskell\n" ++ input ++ "\n~~~"
+    return $ "```haskell\n" ++ input ++ "\n```"
 
 -- |
 -- This named transformation runs the 'music' transformation and retains the source.
