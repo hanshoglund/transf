@@ -34,7 +34,7 @@ defaultMain name transf = do
     (opts, args, optErrs) <- getOpt Permute options `fmap` getArgs
 
     let usage = usageInfo (header name) options
-    let printUsage   = putStr (usage ++ "\n")   >> exitSuccess
+    let printUsage   = putStr (usage ++ "\n")        >> exitSuccess
     let printVersion = putStr (version name ++ "\n") >> exitSuccess
 
     when (1 `elem` opts) printUsage
@@ -60,5 +60,5 @@ run transf fin fout = do
         output <- runTransform' transf input
         liftIO $ hPutStr fout output
     case res of
-        Left e -> putStrLn $ "Error: " ++ e
-        Right _ -> return ()
+        Left e  -> hPutStrLn stderr ("Error: " ++ e) >> exitFailure
+        Right _ -> exitSuccess
