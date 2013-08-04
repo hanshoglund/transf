@@ -58,12 +58,11 @@ import System.IO (hPutStr, stderr)
 import System.Process
 import Language.Haskell.Interpreter hiding (eval)
 
-import Music.Prelude.Basic
-
 import qualified Prelude
 import qualified Data.List          as List
 import qualified Data.Char          as Char
 import qualified Data.Traversable   as Traversable
+import qualified Music.Prelude.Basic as Music
 
 -- |
 -- A single line of text.
@@ -283,9 +282,9 @@ evalT = transform "eval" $ \input -> evalWith ["Prelude"] input
 musicT :: Transform
 musicT = transform "music" $ \input -> do
     let name = showHex (abs $ hash input) ""
-    music <- eval input :: Context (Score Note)
-    liftIO $ writeLy (name++".ly") music
-    liftIO $ writeMidi (name++".mid") music
+    music <- eval input :: Context (Music.Score Music.Note)
+    liftIO $ Music.writeLy (name++".ly") music
+    -- liftIO $ Music.writeMidi (name++".mid") music
     -- liftIO $ system $ "lilypond -f png -dresolution=300 "++name++".ly"
     -- liftIO $ system $ "convert -transparent white -resize 30% "++name++".png "++name++"x.png"
     
