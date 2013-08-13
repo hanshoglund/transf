@@ -6,3 +6,9 @@ dist
 *.tex
 *.texi
 *.count
+js
+*.md
+soundfont
+styles.css
+*.html
+*.pdf
