@@ -38,8 +38,10 @@ module Text.Transf (
         printT,
         evalT,
         musicT,
+        musicT',
         haskellT,
-        musicPlusHaskellT,
+        musicHaskellT,
+        musicHaskellT',
         musicExtraT,
   ) where
 
@@ -50,6 +52,7 @@ import Control.Monad.Error
 import Control.Monad.Plus
 import Numeric
 import Data.Maybe
+import Data.Default
 import Data.Semigroup
 import Data.Traversable
 import Data.Typeable
@@ -269,7 +272,18 @@ printT = transform "print" $ \input -> inform input >> return ""
 evalT :: Transform
 evalT = transform "eval" $ \input -> evalWith ["Prelude"] input
 
+-- TODO move to separate module and/or package
 
+data MusicOpts = MusicOpts {
+        format     :: String,
+        resolution :: Int,
+        resize     :: Int
+    }
+instance Default MusicOpts where def = MusicOpts {
+        format     = "png",
+        resolution = 200,
+        resize     = 45
+    }
 
 -- |
 -- This named transformation evaluates its input as a music expression.
@@ -282,7 +296,10 @@ evalT = transform "eval" $ \input -> evalWith ["Prelude"] input
 -- module is implicitly imported.
 --
 musicT :: Transform
-musicT = transform "music" $ \input -> do
+musicT = musicT' def
+
+musicT' :: MusicOpts -> Transform
+musicT' opts = transform "music" $ \input -> do
     let name = showHex (abs $ hash input) ""
     music <- eval input :: Context (Music.Score Music.Note)
 
@@ -295,8 +312,13 @@ musicT = transform "music" $ \input -> do
     --liftIO $ system $ "lilypond -f png -dresolution=200 "++name++".ly"
     
     liftIO $ do
-        res <- readProcess "lilypond" ["-f", "png", "-dresolution=200", name++".ly"] ""
-        Prelude.writeFile "result.png" res
+        (exit, out, err) <- readProcessWithExitCode "lilypond" [
+            "-f", format opts, 
+            "-dresolution=" ++ show (resolution opts) ++ "", name++".ly"
+            ] mempty
+        hPutStr stderr out
+        hPutStr stderr err
+        return ()
     
     liftIO $ system $ "convert -transparent white -resize 45% "++name++".png "++name++"x.png"
                                          
@@ -348,11 +370,14 @@ haskellT = transform "haskell" $ \input ->
 -- |
 -- This named transformation runs the 'music' transformation and retains the source.
 -- 
-musicPlusHaskellT :: Transform
-musicPlusHaskellT = transform "music+haskell" $ \input -> do
+musicHaskellT :: Transform
+musicHaskellT = musicHaskellT' def
+
+musicHaskellT' :: MusicOpts -> Transform
+musicHaskellT' opts = transform "music+haskell" $ \input -> do
     let begin    = "<div class='haskell-music'>"
     let end      = "</div>"
-    musicRes   <- doTrans musicT input
+    musicRes   <- doTrans (musicT' opts) input
     haskellRes <- doTrans haskellT input
     return $ begin ++ "\n\n" ++ musicRes ++ "\n\n" ++ haskellRes ++ "\n\n" ++ end
 

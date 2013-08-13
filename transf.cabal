@@ -47,6 +47,7 @@ library
         mtl,
         monadplus,
         filepath,
+        data-default,
         process,      
         hashable,
         hint,

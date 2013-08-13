@@ -6,4 +6,4 @@ import Text.Transf
 import Text.Transf.Process
 
 main   = defaultMain "transf" transf
-transf = haskellT <> musicT <> musicPlusHaskellT <> musicExtraT
+transf = haskellT <> musicT <> musicHaskellT <> musicExtraT
