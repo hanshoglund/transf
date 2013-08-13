@@ -269,6 +269,8 @@ printT = transform "print" $ \input -> inform input >> return ""
 evalT :: Transform
 evalT = transform "eval" $ \input -> evalWith ["Prelude"] input
 
+
+
 -- |
 -- This named transformation evaluates its input as a music expression.
 --
@@ -283,23 +285,30 @@ musicT :: Transform
 musicT = transform "music" $ \input -> do
     let name = showHex (abs $ hash input) ""
     music <- eval input :: Context (Music.Score Music.Note)
+
     liftIO $ Music.writeLy (name++".ly") music
-    -- liftIO $ Music.writeMidi (name++".mid") music
+    liftIO $ Music.writeMidi (name++".mid") music
+    liftIO $ void $ readProcess "timidity" ["-Ow", name++".mid"] ""
+
     -- liftIO $ system $ "lilypond -f png -dresolution=300 "++name++".ly"
     -- liftIO $ system $ "convert -transparent white -resize 30% "++name++".png "++name++"x.png"
-    
-    
     --liftIO $ system $ "lilypond -f png -dresolution=200 "++name++".ly"
+    
     liftIO $ do
         res <- readProcess "lilypond" ["-f", "png", "-dresolution=200", name++".ly"] ""
         Prelude.writeFile "result.png" res
     
-    liftIO $ system $ "convert -transparent white -resize 50% "++name++".png "++name++"x.png"
-    let playText = "<div>" ++
-                   "  <a href=\"javascript:playFile('"++name++".mid')\"><img src=\"img/play2.png\"/></a>\n" ++
-                   "  <a href=\"javascript:stopPlaying()\"><img src=\"img/pause2.png\"/></a>\n" ++
-                   "</div>\n"
-    return $ playText ++ "![]("++name++"x.png)"
+    liftIO $ system $ "convert -transparent white -resize 45% "++name++".png "++name++"x.png"
+                                         
+    let playText = ""
+    -- let playText = "<div class='haskell-music-listen'><a href='"++name++".wav'>listen</a></div>"
+
+    -- let playText = "<div>" ++
+    --                "  <a href=\"javascript:playFile('"++name++".mid')\">[play]</a>\n" ++
+    --                "  <a href=\"javascript:stopPlaying()\">[stop]</a>\n" ++
+    --                "</div>\n"
+
+    return $ playText ++ "\n\n" ++ "![]("++name++"x.png)"
     --  -resize 30%
 
 -- |
@@ -318,6 +327,17 @@ musicExtraT = transform "music-extra" $ \_ -> return txt
               "<script src=\"js/base64binary.js\" type=\"text/javascript\"></script>\n" ++
               "<script src=\"js/main.js\" type=\"text/javascript\"></script>\n"
 
+{-
+    <script src="js/jasmid/stream.js"></script>
+    <script src="js/jasmid/midifile.js"></script>
+    <script src="js/jasmid/replayer.js"></script>
+    <script src="js/midi.js"></script>
+    <script src="js/Base64.js" type="text/javascript"></script>
+    <script src="js/base64binary.js" type="text/javascript"></script>
+    <script src="js/main.js" type="text/javascript"></script>
+-}
+
+    
 -- |
 -- This named transformation passes everything through and retains the source.
 -- 
@@ -330,9 +350,11 @@ haskellT = transform "haskell" $ \input ->
 -- 
 musicPlusHaskellT :: Transform
 musicPlusHaskellT = transform "music+haskell" $ \input -> do
+    let begin    = "<div class='haskell-music'>"
+    let end      = "</div>"
     musicRes   <- doTrans musicT input
     haskellRes <- doTrans haskellT input
-    return $ musicRes ++ "\n\n" ++ haskellRes
+    return $ begin ++ "\n\n" ++ musicRes ++ "\n\n" ++ haskellRes ++ "\n\n" ++ end
 
 
 
