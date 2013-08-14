@@ -36,8 +36,9 @@ module Text.Transf (
 
         -- * Transformormations
         printT,
-        evalT,
+        evalT,   
         musicT,
+        MusicOpts(..),
         musicT',
         haskellT,
         musicHaskellT,
