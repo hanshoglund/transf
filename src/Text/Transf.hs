@@ -307,12 +307,8 @@ musicT' opts = transform "music" $ \input -> do
 
     liftIO $ Music.writeLy (name++".ly") music
     liftIO $ Music.writeMidi (name++".mid") music
-    liftIO $ void $ readProcess "timidity" ["-Ow", name++".mid"] ""
+    -- liftIO $ void $ readProcess "timidity" ["-Ow", name++".mid"] ""
 
-    -- liftIO $ system $ "lilypond -f png -dresolution=300 "++name++".ly"
-    -- liftIO $ system $ "convert -transparent white -resize 30% "++name++".png "++name++"x.png"
-    --liftIO $ system $ "lilypond -f png -dresolution=200 "++name++".ly"
-    
     liftIO $ do
         (exit, out, err) <- readProcessWithExitCode "lilypond" [
             "-f", format opts, 
