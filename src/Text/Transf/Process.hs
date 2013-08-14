@@ -1,9 +1,13 @@
 
+{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, DeriveFunctor #-}
+
 module Text.Transf.Process (
         defaultMain,
+        defaultMain',
   ) where
 
 import Control.Exception
+import Control.Applicative
 import Control.Monad (when)
 import Control.Monad.Error hiding (mapM)
 import Control.Monad.Plus hiding (mapM)
@@ -30,16 +34,30 @@ import Prelude hiding (readFile, writeFile)
 -- halts and prints an error message to the standard error stream.
 -- 
 defaultMain :: String -> Transform -> IO ()
-defaultMain name transf = do
-    (opts, args, optErrs) <- getOpt Permute options `fmap` getArgs
+defaultMain name transf = defaultMain' name [] (const transf)
 
-    let usage = usageInfo (header name) options
+-- |
+-- Like 'defaultMain', but customizes the transform based on the
+-- given options.
+--
+-- The @help@ and @version@ flags are added automatically.
+--
+defaultMain' :: String -> [OptDescr a] -> ([a] -> Transform) -> IO ()
+defaultMain' name optDesc transf = do               
+    let optDesc' = stdOptDesc ++ (fmap . mapOptDescr) User optDesc
+    (opts, args, optErrs) <- getOpt Permute optDesc' <$> getArgs
+    return ()
+
+    let usage = usageInfo (header name) optDesc'
     let printUsage   = putStr (usage ++ "\n")        >> exitSuccess
     let printVersion = putStr (version name ++ "\n") >> exitSuccess
+    -- 
+    when (Help    `elem` opts) printUsage
+    when (Version `elem` opts) printVersion
+    let opts' = fmap (\(User a) -> a) opts
 
-    when (1 `elem` opts) printUsage
-    when (2 `elem` opts) printVersion
-    runFilter transf
+    runFilter (transf opts')
+    return ()
 
     where
         version name = name ++ "-0.9"
@@ -47,15 +65,15 @@ defaultMain name transf = do
                        "Usage: "++name++" [options] files...\n" ++
                        "\n" ++
                        "Options:"
-
-        options ::  [OptDescr Integer]
-        options = [
-            Option ['h'] ["help"]          (NoArg 1)   "Print help and exit",
-            Option ['v'] ["version"]       (NoArg 2)   "Print version and exit"
-          ]
-
+        
         runFilter :: Transform -> IO ()
         runFilter transf = run transf stdin stdout
+        
+        -- stdOptDesc :: [UserOpt a]
+        stdOptDesc = [
+                Option ['h'] ["help"]    (NoArg Help)       "Print help and exit",
+                Option ['v'] ["version"] (NoArg Version)    "Print version and exit"
+            ]
 
         run :: Transform -> Handle -> Handle -> IO ()
         run transf fin fout = do
@@ -66,3 +84,21 @@ defaultMain name transf = do
             case res of
                 Left e  -> hPutStrLn stderr ("Error: " ++ e) >> exitFailure
                 Right _ -> exitSuccess
+
+
+mapOptDescr :: (a -> b) -> OptDescr a -> OptDescr b
+mapOptDescr = fmap
+
+-- TODO orphans
+deriving instance Functor OptDescr
+deriving instance Functor ArgDescr
+
+data UserOpt a
+    = Help
+    | Version
+    | User a
+instance Eq (UserOpt a) where
+    Help    == Help     = True
+    Version == Version  = True
+    _       == _        = False
+
