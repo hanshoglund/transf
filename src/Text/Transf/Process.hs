@@ -39,26 +39,30 @@ defaultMain name transf = do
 
     when (1 `elem` opts) printUsage
     when (2 `elem` opts) printVersion
-    runFilter transf opts
+    runFilter transf
 
-version name = name ++ "-0.9"
-header  name = "Usage: "++name++" [options]\n" ++
-               "Usage: "++name++" [options] files...\n" ++
-               "\n" ++
-               "Options:"
+    where
+        version name = name ++ "-0.9"
+        header  name = "Usage: "++name++" [options]\n" ++
+                       "Usage: "++name++" [options] files...\n" ++
+                       "\n" ++
+                       "Options:"
 
-options = [
-    Option ['h'] ["help"]          (NoArg 1)   "Print help and exit",
-    Option ['v'] ["version"]       (NoArg 2)   "Print version and exit"
-  ]
+        options ::  [OptDescr Integer]
+        options = [
+            Option ['h'] ["help"]          (NoArg 1)   "Print help and exit",
+            Option ['v'] ["version"]       (NoArg 2)   "Print version and exit"
+          ]
 
-runFilter transf _ = run transf stdin stdout
+        runFilter :: Transform -> IO ()
+        runFilter transf = run transf stdin stdout
 
-run transf fin fout = do
-    res <- runContext $ do
-        input  <- liftIO $ hGetContents fin
-        output <- runTransform' transf input
-        liftIO $ hPutStr fout output
-    case res of
-        Left e  -> hPutStrLn stderr ("Error: " ++ e) >> exitFailure
-        Right _ -> exitSuccess
+        run :: Transform -> Handle -> Handle -> IO ()
+        run transf fin fout = do
+            res <- runContext $ do
+                input  <- liftIO $ hGetContents fin
+                output <- runTransform' transf input
+                liftIO $ hPutStr fout output
+            case res of
+                Left e  -> hPutStrLn stderr ("Error: " ++ e) >> exitFailure
+                Right _ -> exitSuccess
