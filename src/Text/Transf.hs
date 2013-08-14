@@ -49,6 +49,7 @@ module Text.Transf (
 import Prelude hiding (mapM, readFile, writeFile)
 
 import Control.Exception
+import Control.Monad
 import Control.Monad.Error
 import Control.Monad.Plus
 import Numeric
@@ -321,8 +322,13 @@ musicT' opts = transform "music" $ \input -> do
         hPutStr stderr err
         return ()
     
-    liftIO $ system $ "convert -transparent white -resize 45% "++name++".png "++name++"x.png"
-                                         
+    liftIO $ when (format opts == "png") $ void $
+        system $ 
+            "convert -transparent white -resize " 
+                ++ show (resize opts) ++"% "
+                ++ name ++".png "
+                ++ name ++ "x.png"
+
     let playText = ""
     -- let playText = "<div class='haskell-music-listen'><a href='"++name++".wav'>listen</a></div>"
 
@@ -330,8 +336,9 @@ musicT' opts = transform "music" $ \input -> do
     --                "  <a href=\"javascript:playFile('"++name++".mid')\">[play]</a>\n" ++
     --                "  <a href=\"javascript:stopPlaying()\">[stop]</a>\n" ++
     --                "</div>\n"
-
-    return $ playText ++ "\n\n" ++ "![]("++name++"x.png)"
+                                                   
+    let ending = if format opts == "png" then "x" else ""
+    return $ playText ++ "\n\n" ++ "![](" ++ name ++ ending ++ "." ++ format opts ++ ")"
     --  -resize 30%
 
 -- |

@@ -36,8 +36,8 @@ getMusicOpts xs = MusicOpts {
 
 optDesc :: [OptDescr Opt]
 optDesc = [
-        Option [] ["format"] (ReqArg Format "")              "Music output format",
-        Option [] ["format"] (ReqArg (Resolution . read) "") "Music resolution",
-        Option [] ["format"] (ReqArg (Resize . read) "")     "Music resize factor"
+        Option [] ["format"]        (ReqArg Format "pdf|png|ps")     "Music output format",
+        Option [] ["resolution"]    (ReqArg (Resolution . read) "N") "Music resolution",
+        Option [] ["resize"]        (ReqArg (Resize . read) "N")     "Music resize factor"
     ]
 
