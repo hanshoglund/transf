@@ -1,5 +1,5 @@
 
-{-# LANGUAGE
+{-# LANGUAGE                  
     GeneralizedNewtypeDeriving #-}
 
 module Text.Transf (
@@ -33,6 +33,7 @@ module Text.Transf (
         -- ** Evaluation
         eval,
         evalWith,
+        addPost,
 
         -- * Transformormations
         printT,
@@ -50,6 +51,7 @@ import Prelude hiding (mapM, readFile, writeFile)
 
 import Control.Exception
 import Control.Monad
+import Control.Monad.Writer hiding ((<>))
 import Control.Monad.Error
 import Control.Monad.Plus
 import Numeric
@@ -92,24 +94,39 @@ type RelativePath = FilePath
 --
 type Context = ContextT IO
 
+
+newtype Post m = Post (ContextT m ())
+
+instance Monad m => Monoid (Post m) where
+    mempty  = Post $ return ()
+    mappend (Post a) (Post b) = Post (a >> b)
+
 -- | 
 -- The 'ContextT' monad transformer adds the context of a transformation
 -- to an underlying monad.
 --
-newtype ContextT m a = ContextT { runContextT' :: ErrorT String m a }
-    deriving (Monad, MonadPlus, MonadError String, MonadIO)
+newtype ContextT m a = ContextT { runContextT_ :: 
+    ErrorT String (WriterT (Post m) m) a 
+    }
+    deriving (Monad, MonadPlus, MonadError String, MonadWriter (Post m), MonadIO)
+
 
 -- |
 -- Run a computation in the 'Context' monad.
 --
 runContext :: Context a -> IO (Either String a)
-runContext = runErrorT . runContextT
+runContext = runContextT
 
--- |
--- Run a computation in a 'ContextT'-based monad.
---
-runContextT :: ContextT m a -> ErrorT String m a
-runContextT = runContextT'
+runContextT :: Monad m => ContextT m a -> m (Either String a)
+runContextT x = do
+    (r, Post post) <- runC x
+    runContextT post
+    return r
+    where
+        runC = runWriterT . runErrorT . runContextT_
+
+
+
 
 -- |
 -- A transformation.
@@ -246,6 +263,16 @@ evalWith imps str = do
 --
 inform :: String -> Context ()
 inform m = liftIO $ hPutStr stderr $ m ++ "\n"
+
+-- |
+-- Register an action to be run after text processing has finished.
+-- This can be used to optimize tasks such as external file generations.
+--
+-- Note that addPost does not work trasitively, i.e. post actions of
+-- post actions are thrown away.
+-- 
+addPost :: Context () -> Context ()
+addPost = tell . Post
 
 
 ----------------------------------------------------------------------------------------------------
