@@ -118,9 +118,12 @@ runContext :: Context a -> IO (Either String a)
 runContext = runContextT
 
 runContextT :: Monad m => ContextT m a -> m (Either String a)
-runContextT x = do
+runContextT = runContextT' True
+
+runContextT' :: Monad m => Bool -> ContextT m a -> m (Either String a)
+runContextT' recur x = do
     (r, Post post) <- runC x
-    runContextT post
+    if recur then runContextT' False post else return (return ())
     return r
     where
         runC = runWriterT . runErrorT . runContextT_

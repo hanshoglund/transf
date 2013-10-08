@@ -9,8 +9,9 @@ test:
 	rm -f out.md
 	rm -f out2.md
 	( transf $(TRANSF_OPTIONS) ) <test.md >out.md
-	( transf $(TRANSF_OPTIONS) ) <test2.md >out2.md
 	( pandoc $(PANDOC_OPTIONS) ) <out.md >test.html
+
+	( transf $(TRANSF_OPTIONS) ) <test2.md >out2.md
 	( pandoc $(PANDOC_OPTIONS) ) <out2.md >test2.html
 
 	# rm -f *.ly
