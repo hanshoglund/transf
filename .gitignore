@@ -12,3 +12,5 @@ soundfont
 styles.css
 *.html
 *.pdf
+*.wav
+*.mid

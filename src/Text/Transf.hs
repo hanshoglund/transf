@@ -50,6 +50,7 @@ module Text.Transf (
 import Prelude hiding (mapM, readFile, writeFile)
 
 import Control.Exception
+import Control.Concurrent.Async
 import Control.Monad
 import Control.Monad.Writer hiding ((<>))
 import Control.Monad.Error
@@ -95,11 +96,13 @@ type RelativePath = FilePath
 type Context = ContextT IO
 
 
-newtype Post m = Post (ContextT m ())
+newtype Post m = Post [ContextT m ()]
+post = Post . return
 
-instance Monad m => Monoid (Post m) where
-    mempty  = Post $ return ()
-    mappend (Post a) (Post b) = Post (a >> b)
+instance Monoid (Post m) where
+    mempty  = Post []
+    mappend (Post a) (Post b) = Post (a <> b)
+
 
 -- | 
 -- The 'ContextT' monad transformer adds the context of a transformation
@@ -115,15 +118,38 @@ newtype ContextT m a = ContextT { runContextT_ ::
 -- Run a computation in the 'Context' monad.
 --
 runContext :: Context a -> IO (Either String a)
-runContext = runContextT
+runContext x = do
+    (r, Post posts) <- runC x
+    parallel_ posts
+    return r
+    where
+        runC = runWriterT . runErrorT . runContextT_
+
+parallel_ :: [ContextT IO ()] -> IO ()
+parallel_ = par2 . fmap ignoreErrorsAndPost
+
+par2 :: [IO ()] -> IO ()
+par2 = foldb (\x y -> fmap (const ()) $ concurrently x y) (return ())
+
+
+foldb :: (a -> a -> a) -> a -> [a] -> a
+foldb f z []  = z  
+foldb f z [x] = x 
+foldb f z xs = let (as,bs) = split xs
+    in foldb f z as `f` foldb f z bs
+    where
+        split xs = (take n xs, drop n xs) where n = length xs `div` 2
+
+ignoreErrorsAndPost :: ContextT IO a -> IO ()
+ignoreErrorsAndPost x = (runWriterT . runErrorT . runContextT_) x >> return ()
 
 runContextT :: Monad m => ContextT m a -> m (Either String a)
 runContextT = runContextT' True
 
 runContextT' :: Monad m => Bool -> ContextT m a -> m (Either String a)
 runContextT' recur x = do
-    (r, Post post) <- runC x
-    if recur then runContextT' False post else return (return ())
+    (r, Post posts) <- runC x
+    if recur then runContextT' False (sequence_ posts) else return (return ())
     return r
     where
         runC = runWriterT . runErrorT . runContextT_
@@ -275,7 +301,7 @@ inform m = liftIO $ hPutStr stderr $ m ++ "\n"
 -- post actions are thrown away.
 -- 
 addPost :: Context () -> Context ()
-addPost = tell . Post
+addPost = tell . post
 
 
 ----------------------------------------------------------------------------------------------------
@@ -339,7 +365,7 @@ musicT' opts = transform "music" $ \input -> do
     liftIO $ Music.writeMidi (name++".mid") music
     -- liftIO $ void $ readProcess "timidity" ["-Ow", name++".mid"] ""
 
-    liftIO $ do
+    let makeLy = do
         (exit, out, err) <- readProcessWithExitCode "lilypond" [
             "-f", format opts, 
             "-dresolution=" ++ show (resolution opts) ++ "", name++".ly"
@@ -348,12 +374,13 @@ musicT' opts = transform "music" $ \input -> do
         hPutStr stderr err
         return ()
     
-    liftIO $ when (format opts == "png") $ void $
-        system $ 
+    let makePng = when (format opts == "png") $ void $ system $ 
             "convert -transparent white -resize " 
                 ++ show (resize opts) ++"% "
                 ++ name ++".png "
                 ++ name ++ "x.png"
+
+    addPost (liftIO $ makeLy >> makePng)
 
     let playText = ""
     -- let playText = "<div class='haskell-music-listen'><a href='"++name++".wav'>listen</a></div>"

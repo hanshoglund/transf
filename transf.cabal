@@ -48,6 +48,7 @@ library
         monadplus,
         filepath,
         data-default,
+        async,
         process,      
         hashable,
         hint,
