@@ -1,5 +1,5 @@
 
-TRANSF_OPTIONS =
+TRANSF_OPTIONS = +RTS+ -N8
 PANDOC_OPTIONS = -s --toc -cstyles.css -s -t html --highlight-style=espresso
 
 .PHONY: test
