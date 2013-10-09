@@ -32,6 +32,8 @@ import Prelude hiding (readFile, writeFile)
 -- and @-h@ flags. If given no flags it runs the text transformer over
 -- the standard input and output streams. If an error occurs the program
 -- halts and prints an error message to the standard error stream.
+--
+-- > defaultMain name transf
 -- 
 defaultMain :: String -> Transform -> IO ()
 defaultMain name transf = defaultMain' name [] (const transf)
@@ -42,6 +44,8 @@ defaultMain name transf = defaultMain' name [] (const transf)
 --
 -- The @help@ and @version@ flags are added automatically.
 --
+-- > defaultMain' name opts transf
+-- 
 defaultMain' :: String -> [OptDescr a] -> ([a] -> Transform) -> IO ()
 defaultMain' name optDesc transf = do               
     let optDesc' = stdOptDesc ++ (fmap . mapOptDescr) User optDesc
@@ -79,7 +83,7 @@ defaultMain' name optDesc transf = do
         run transf fin fout = do
             res <- runContext $ do
                 input  <- liftIO $ hGetContents fin
-                output <- runTransform' transf input
+                output <- runTransform transf input
                 liftIO $ hPutStr fout output
             case res of
                 Left e  -> hPutStrLn stderr ("Error: " ++ e) >> exitFailure

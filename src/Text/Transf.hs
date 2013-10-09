@@ -10,8 +10,8 @@ module Text.Transf (
 
         -- * The Context type
         Context,
-        runContext,
         ContextT,
+        runContext,
         runContextT,
 
         -- * Transformormations
@@ -23,7 +23,7 @@ module Text.Transf (
 
         -- ** Running transformations
         runTransform,
-        runTransform',
+        -- runTransformIO,
 
         -- * Combinators
         -- ** Input/output
@@ -49,6 +49,7 @@ module Text.Transf (
 
 import Prelude hiding (mapM, readFile, writeFile)
 
+import Control.Applicative
 import Control.Exception
 import Control.Concurrent.Async
 import Control.Monad
@@ -88,6 +89,21 @@ type Lines = String
 type RelativePath = FilePath
 
 -- | 
+-- Action to be executed after main transf pass.
+--
+newtype Post m = Post [ContextT m ()]
+    deriving (Monoid)
+
+post :: ContextT m () -> Post m
+post = Post . return
+
+type PrimContextT m = ErrorT String (WriterT (Post m) m)
+
+newtype ContextT m a = ContextT { runContextT_ :: PrimContextT m a }
+    deriving ( Monad, MonadIO, MonadPlus,
+        MonadError String, MonadWriter (Post m) )
+
+-- | 
 -- The 'Context' monad defines the context of a transformation.
 --
 -- The main purpose of this type is to restrict the the number
@@ -95,53 +111,16 @@ type RelativePath = FilePath
 --
 type Context = ContextT IO
 
-
-newtype Post m = Post [ContextT m ()]
-post = Post . return
-
-instance Monoid (Post m) where
-    mempty  = Post []
-    mappend (Post a) (Post b) = Post (a <> b)
-
-
--- | 
--- The 'ContextT' monad transformer adds the context of a transformation
--- to an underlying monad.
---
-newtype ContextT m a = ContextT { runContextT_ :: 
-    ErrorT String (WriterT (Post m) m) a 
-    }
-    deriving (Monad, MonadPlus, MonadError String, MonadWriter (Post m), MonadIO)
-
-
 -- |
 -- Run a computation in the 'Context' monad.
 --
 runContext :: Context a -> IO (Either String a)
 runContext x = do
     (r, Post posts) <- runC x
-    parallel_ posts
+    parallel_ (fmap ignoreErrorsAndPost posts)
     return r
     where
         runC = runWriterT . runErrorT . runContextT_
-
-parallel_ :: [ContextT IO ()] -> IO ()
-parallel_ = par2 . fmap ignoreErrorsAndPost
-
-par2 :: [IO ()] -> IO ()
-par2 = foldb (\x y -> fmap (const ()) $ concurrently x y) (return ())
-
-
-foldb :: (a -> a -> a) -> a -> [a] -> a
-foldb f z []  = z  
-foldb f z [x] = x 
-foldb f z xs = let (as,bs) = split xs
-    in foldb f z as `f` foldb f z bs
-    where
-        split xs = (take n xs, drop n xs) where n = length xs `div` 2
-
-ignoreErrorsAndPost :: ContextT IO a -> IO ()
-ignoreErrorsAndPost x = (runWriterT . runErrorT . runContextT_) x >> return ()
 
 runContextT :: Monad m => ContextT m a -> m (Either String a)
 runContextT = runContextT' True
@@ -153,6 +132,10 @@ runContextT' recur x = do
     return r
     where
         runC = runWriterT . runErrorT . runContextT_
+
+ignoreErrorsAndPost :: ContextT IO a -> IO ()
+ignoreErrorsAndPost x = (runWriterT . runErrorT . runContextT_) x >> return ()
+
 
 
 
@@ -219,9 +202,9 @@ transform name = newTransform (namedFence name) (namedFence "")
 -- | 
 -- Run a transformation with the given error handler and input.
 --
-runTransform :: Transform -> (String -> IO String) -> String -> IO String
-runTransform t handler input = do
-    res <- runContext $ runTransform' t input
+runTransformIO :: Transform -> (String -> IO String) -> String -> IO String
+runTransformIO t handler input = do
+    res <- runContext $ runTransform t input
     case res of
         Left e  -> handler e
         Right a -> return a
@@ -229,8 +212,8 @@ runTransform t handler input = do
 -- | 
 -- Run a transformation in the 'Context' monad.
 --
-runTransform' :: Transform -> String -> Context String
-runTransform' = go
+runTransform :: Transform -> String -> Context String
+runTransform = go
     where
         go (CompTrans [])     as = return as
         go (CompTrans (t:ts)) as = do
@@ -478,4 +461,19 @@ secondM f (a, b) = do
 oneOf :: (a -> Bool) -> (a -> Bool) -> a -> Bool
 oneOf p q x = p x || q x
 
+parallel_ :: [IO ()] -> IO ()
+parallel_ = foldb concurrently_ (return ())
 
+concurrently_ :: IO a -> IO b -> IO ()
+concurrently_ = concurrentlyWith (\x y -> ())
+
+concurrentlyWith :: (a -> b -> c) -> IO a -> IO b -> IO c
+concurrentlyWith f x y = uncurry f <$> x `concurrently` y
+
+foldb :: (a -> a -> a) -> a -> [a] -> a
+foldb f z []  = z  
+foldb f z [x] = x 
+foldb f z xs = let (as,bs) = split xs
+    in foldb f z as `f` foldb f z bs
+    where
+        split xs = (take n xs, drop n xs) where n = length xs `div` 2
