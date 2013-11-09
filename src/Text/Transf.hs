@@ -63,7 +63,7 @@ import Data.Semigroup
 import Data.Traversable
 import Data.Typeable
 import Data.Hashable
-import System.IO (hPutStr, stderr)
+import System.IO (hPutStr, hPutStrLn, stderr)
 import System.Process
 import Language.Haskell.Interpreter hiding (eval)
 
@@ -344,9 +344,11 @@ musicT' opts = transform "music" $ \input -> do
     let name = showHex (abs $ hash input) ""
     music <- eval input :: Context (Music.Score Music.Note)
 
-    liftIO $ Music.writeLy (name++".ly") music
+    liftIO $ let handler ex = hPutStrLn stderr $ "transf (music+ly): " ++ show (ex::SomeException) ++ "\n" ++ show input
+        in handler `handle` (Music.writeLy (name++".ly") music)
+
     liftIO $ Music.writeMidi (name++".mid") music
-    -- liftIO $ void $ readProcess "timidity" ["-Ow", name++".mid"] ""
+    -- liftIO $ void $ readProcess "timidity" ["-Ow", name++".mid"] ""
 
     let makeLy = do
         (exit, out, err) <- readProcessWithExitCode "lilypond" [
