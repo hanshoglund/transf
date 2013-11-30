@@ -264,6 +264,7 @@ eval = evalWith ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] -- FIX
 evalWith :: Typeable a => [String] -> String -> Context a
 evalWith imps str = do
     res <- liftIO $ runInterpreter $ do
+        set [languageExtensions := [OverloadedStrings]]
         setImports imps
         interpret str infer
     case res of
