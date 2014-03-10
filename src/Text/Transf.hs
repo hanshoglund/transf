@@ -100,7 +100,7 @@ post = Post . return
 type PrimContextT m = ErrorT String (WriterT (Post m) m)
 
 newtype ContextT m a = ContextT { runContextT_ :: PrimContextT m a }
-    deriving ( Monad, MonadIO, MonadPlus,
+    deriving ( Functor, Monad, MonadIO, MonadPlus,
         MonadError String, MonadWriter (Post m) )
 
 -- | 
@@ -249,7 +249,9 @@ writeFile path str = liftIO $ Prelude.writeFile path str
 -- Evaluate a Haskell expression.
 --
 eval :: Typeable a => String -> Context a
-eval = evalWith ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] -- FIXME
+eval = evalWith ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] 
+    -- FIXME hardcoded
+    -- For some reason, Pitch needs to be in scope (type synonym exported from Music.Prelude.Basic)
 
 -- | Evaluate a Haskell expression with the given modules in scope.
 --   Note that "Prelude" is /not/ implicitly imported.
@@ -264,12 +266,17 @@ eval = evalWith ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] -- FIX
 evalWith :: Typeable a => [String] -> String -> Context a
 evalWith imps str = do
     res <- liftIO $ runInterpreter $ do
-        set [languageExtensions := [OverloadedStrings]]
+        set [languageExtensions := [OverloadedStrings, NoMonomorphismRestriction]]
         setImports imps
         interpret str infer
     case res of
-        Left e -> throwError $ "eval: " ++ show e
+        Left e -> throwError $ "Could not evaluate: " ++ str ++ "\n" ++ showIE e
         Right a -> return a
+    where
+        showIE (WontCompile xs)  = "    " ++ List.intercalate "\n    " (fmap errMsg xs)
+        showIE (UnknownError x)  = x
+        showIE (NotAllowed x)    = x
+        showIE (GhcException x)  = x
 
 -- |
 -- Write to the standard error stream.
@@ -343,10 +350,10 @@ musicT = musicT' def
 musicT' :: MusicOpts -> Transform
 musicT' opts = transform "music" $ \input -> do
     let name = showHex (abs $ hash input) ""
-    music <- eval input :: Context (Music.Score Music.Note)
+    music <- eval input :: Context (Music.Score Music.BasicNote)
 
     liftIO $ let handler ex = hPutStrLn stderr $ "transf (music+ly): " ++ show (ex::SomeException) ++ "\n" ++ show input
-        in handler `handle` (Music.writeLy (name++".ly") music)
+        in handler `handle` (Music.writeLilypond (name++".ly") music)
 
     liftIO $ Music.writeMidi (name++".mid") music
     -- liftIO $ void $ readProcess "timidity" ["-Ow", name++".mid"] ""
