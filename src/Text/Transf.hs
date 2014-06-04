@@ -249,7 +249,7 @@ writeFile path str = liftIO $ Prelude.writeFile path str
 -- Evaluate a Haskell expression.
 --
 eval :: Typeable a => String -> Context a
-eval = evalWith ["Prelude", "Music.Prelude.Basic", "Control.Monad.Plus"] 
+eval = evalWith ["Prelude", "Music.Prelude.Basic"] 
     -- FIXME hardcoded
     -- For some reason, Pitch needs to be in scope (type synonym exported from Music.Prelude.Basic)
 
