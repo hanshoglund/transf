@@ -64,7 +64,7 @@ defaultMain' name optDesc transf = do
     return ()
 
     where
-        version name = name ++ "-0.11"
+        version name = name ++ "-0.12"
         header  name = "Usage: "++name++" [options]\n" ++
                        "Usage: "++name++" [options] files...\n" ++
                        "\n" ++

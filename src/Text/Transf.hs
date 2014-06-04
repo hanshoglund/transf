@@ -71,7 +71,7 @@ import qualified Prelude
 import qualified Data.List          as List
 import qualified Data.Char          as Char
 import qualified Data.Traversable   as Traversable
-import qualified Music.Prelude.Basic as Music
+-- import qualified Music.Prelude.Basic as Music
 
 -- |
 -- A single line of text.
@@ -350,6 +350,8 @@ musicT = musicT' def
 musicT' :: MusicOpts -> Transform
 musicT' opts = transform "music" $ \input -> do
     let name = showHex (abs $ hash input) ""
+
+    {-
     music <- eval input :: Context (Music.Score Music.BasicNote)
 
     liftIO $ let handler ex = hPutStrLn stderr $ "transf (music+ly): " ++ show (ex::SomeException) ++ "\n" ++ show input
@@ -357,6 +359,15 @@ musicT' opts = transform "music" $ \input -> do
 
     liftIO $ Music.writeMidi (name++".mid") music
     -- liftIO $ void $ readProcess "timidity" ["-Ow", name++".mid"] ""
+-}
+
+    -- Use music2... wrappers rather than hint
+    -- Note that the use of readProcess will propagate error messages from stderr
+    -- (including both parse and type errors).
+    
+    writeFile (name++".music") input
+    liftIO $ void $ readProcess "music2ly"   ["-o", name++".ly",  name++".music"] ""
+    liftIO $ void $ readProcess "music2midi" ["-o", name++".mid", name++".music"] ""
 
     let makeLy = do
         (exit, out, err) <- readProcessWithExitCode "lilypond" [
@@ -375,9 +386,15 @@ musicT' opts = transform "music" $ \input -> do
 
     addPost (liftIO $ makeLy >> makePng)
 
-    let playText = ""
+    -- let playText = ""
+
+    -- Play generated MIDI file
+    let playText = "<div class='haskell-music-listen'><a href='"++name++".mid'>listen</a></div>"
+    
+    -- Play generated WAV file
     -- let playText = "<div class='haskell-music-listen'><a href='"++name++".wav'>listen</a></div>"
 
+    -- Use Web MIDI player
     -- let playText = "<div>" ++
     --                "  <a href=\"javascript:playFile('"++name++".mid')\">[play]</a>\n" ++
     --                "  <a href=\"javascript:stopPlaying()\">[stop]</a>\n" ++

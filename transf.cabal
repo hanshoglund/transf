@@ -1,6 +1,6 @@
 
 name:               transf
-version:            0.11
+version:            0.12
 cabal-version:      >= 1.6
 author:             Hans Hoglund
 maintainer:         Hans Hoglund <hans@hanshoglund.se>
@@ -51,8 +51,7 @@ library
         async,
         process,      
         hashable,
-        hint,
-        music-preludes
+        hint
     hs-source-dirs: src
     exposed-modules:
         Text.Transf
