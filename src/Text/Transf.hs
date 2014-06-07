@@ -389,10 +389,10 @@ musicT' opts = transform "music" $ \input -> do
     -- let playText = ""
 
     -- Play generated MIDI file
-    let playText = "<div class='haskell-music-listen'><a href='"++name++".mid'>listen</a></div>"
+    let playText = "<div class='haskell-music-listen'><a href='"++name++".mid'>[listen]</a></div>"
     
     -- Play generated WAV file
-    -- let playText = "<div class='haskell-music-listen'><a href='"++name++".wav'>listen</a></div>"
+    -- let playText = "<div class='haskell-music-listen'><a href='"++name++".wav'>[listen]</a></div>"
 
     -- Use Web MIDI player
     -- let playText = "<div>" ++
