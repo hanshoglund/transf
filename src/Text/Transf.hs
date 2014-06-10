@@ -326,12 +326,14 @@ evalT = transform "eval" $ \input -> evalWith ["Prelude"] input
 data MusicOpts = MusicOpts {
         format     :: String,
         resolution :: Int,
-        resize     :: Int
+        resize     :: Int,
+        prelude    :: String
     }
 instance Default MusicOpts where def = MusicOpts {
         format     = "png",
         resolution = 200,
-        resize     = 45
+        resize     = 45,
+        prelude     = "basic"
     }
 
 -- |
@@ -349,6 +351,7 @@ musicT = musicT' def
 
 musicT' :: MusicOpts -> Transform
 musicT' opts = transform "music" $ \input -> do
+    let prel = prelude opts
     let name = showHex (abs $ hash input) ""
 
     {-
@@ -366,8 +369,8 @@ musicT' opts = transform "music" $ \input -> do
     -- (including both parse and type errors).
     
     writeFile (name++".music") input
-    liftIO $ void $ readProcess "music2ly"   ["-o", name++".ly",  name++".music"] ""
-    liftIO $ void $ readProcess "music2midi" ["-o", name++".mid", name++".music"] ""
+    liftIO $ void $ readProcess "music2ly"   ["--prelude", prel, "-o", name++".ly",  name++".music"] ""
+    liftIO $ void $ readProcess "music2midi" ["--prelude", prel, "-o", name++".mid", name++".music"] ""
 
     let makeLy = do
         (exit, out, err) <- readProcessWithExitCode "lilypond" [
