@@ -367,27 +367,29 @@ musicT' opts = transform "music" $ \input -> do
     -- Use music2... wrappers rather than hint
     -- Note that the use of readProcess will propagate error messages from stderr
     -- (including both parse and type errors).
-    
-    writeFile (name++".music") input
-    liftIO $ void $ readProcess "music2ly"   ["--prelude", prel, "-o", name++".ly",  name++".music"] ""
-    liftIO $ void $ readProcess "music2midi" ["--prelude", prel, "-o", name++".mid", name++".music"] ""
 
-    let makeLy = do
-        (exit, out, err) <- readProcessWithExitCode "lilypond" [
-            "-f", format opts, 
-            "-dresolution=" ++ show (resolution opts) ++ "", name++".ly"
-            ] mempty
-        hPutStr stderr out
-        hPutStr stderr err
-        return ()
-    
-    let makePng = when (format opts == "png") $ void $ system $ 
-            "convert -transparent white -resize " 
-                ++ show (resize opts) ++"% "
-                ++ name ++".png "
-                ++ name ++ "x.png"
+    currentFile <- liftIO $ tryMaybe $ Prelude.readFile (name++".music")
+    unless (currentFile == Just input) $ do
+      writeFile (name++".music") input
+      liftIO $ void $ readProcess "music2ly"   ["--prelude", prel, "-o", name++".ly",  name++".music"] ""
+      liftIO $ void $ readProcess "music2midi" ["--prelude", prel, "-o", name++".mid", name++".music"] ""
 
-    addPost (liftIO $ makeLy >> makePng)
+      let makeLy = do
+          (exit, out, err) <- readProcessWithExitCode "lilypond" [
+              "-f", format opts, 
+              "-dresolution=" ++ show (resolution opts) ++ "", name++".ly"
+              ] mempty
+          hPutStr stderr out
+          hPutStr stderr err
+          return ()
+    
+      let makePng = when (format opts == "png") $ void $ system $ 
+              "convert -transparent white -resize " 
+                  ++ show (resize opts) ++"% "
+                  ++ name ++".png "
+                  ++ name ++ "x.png"
+
+      addPost (liftIO $ makeLy >> makePng)
 
     -- let playText = ""
 
@@ -507,3 +509,12 @@ foldb f z xs = let (as,bs) = split xs
     in foldb f z as `f` foldb f z bs
     where
         split xs = (take n xs, drop n xs) where n = length xs `div` 2
+
+
+tryMaybe :: IO a -> IO (Maybe a)
+tryMaybe action = do
+  r <- try action
+  return $ case r of
+    Left e  -> let e' = (e::SomeException) in Nothing
+    Right x -> Just x
+
