@@ -44,3 +44,4 @@ install-dirs
 .ghci
 .shelly
 cabal.sandbox.config
+foo
