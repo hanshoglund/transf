@@ -319,7 +319,11 @@ printT = transform "print" $ \input -> inform input >> return ""
 -- > The number is 6
 --
 evalT :: Transform
-evalT = transform "eval" $ \input -> evalWith ["Prelude"] input
+-- evalT = transform "eval" $ \input -> evalWith ["Prelude"] input
+evalT = transform "eval" $ \input -> do
+  (exit, out, err) <- liftIO $ readProcessWithExitCode "runhaskell" [] input
+  inform err
+  return out
 
 -- TODO move to separate module and/or package
 
