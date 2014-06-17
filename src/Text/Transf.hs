@@ -322,7 +322,7 @@ printT = transform "print" $ \input -> inform input >> return ""
 evalT :: Transform
 -- evalT = transform "eval" $ \input -> evalWith ["Prelude"] input
 evalT = transform "eval" $ \input -> do
-  (exit, out, err) <- liftIO $ readProcessWithExitCode "runhaskell" [] input
+  (exit, out, err) <- liftIO $ readProcessWithExitCode "runhaskell2" [] input
   inform err
   return out
 
