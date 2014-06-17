@@ -42,6 +42,7 @@ module Text.Transf (
         MusicOpts(..),
         musicT',
         haskellT,
+        evalHaskellT,
         musicHaskellT,
         musicHaskellT',
         musicExtraT,
@@ -461,6 +462,12 @@ musicHaskellT' opts = transform "music+haskell" $ \input -> do
     haskellRes <- doTrans haskellT input
     return $ begin ++ "\n\n" ++ musicRes ++ "\n\n" ++ haskellRes ++ "\n\n" ++ end
 
+
+evalHaskellT :: Transform
+evalHaskellT = transform "eval+haskell" $ \input -> do
+    evalRes    <- doTrans evalT input
+    haskellRes <- doTrans haskellT input
+    return $ "\n\n" ++ evalRes ++ "\n\n" ++ haskellRes ++ "\n\n"
 
 
 ----------------------------------------------------------------------------------------------------

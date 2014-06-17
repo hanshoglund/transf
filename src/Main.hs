@@ -9,7 +9,15 @@ import Text.Transf
 import Text.Transf.Process
 
 main        = defaultMain' "transf" optDesc transf
-transf opts = haskellT <> musicT' (getMusicOpts opts) <> musicHaskellT' (getMusicOpts opts) <> musicExtraT
+transf opts = 
+  haskellT
+  <> printT
+  <> evalT
+  -- <> haskellT
+  <> evalHaskellT
+  <> musicT' (getMusicOpts opts) 
+  <> musicHaskellT' (getMusicOpts opts) 
+  <> musicExtraT
 
 
 data Opt
