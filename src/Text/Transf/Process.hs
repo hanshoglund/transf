@@ -93,14 +93,11 @@ defaultMain' name optDesc transf = do
 mapOptDescr :: (a -> b) -> OptDescr a -> OptDescr b
 mapOptDescr = fmap
 
--- TODO orphans
-deriving instance Functor OptDescr
-deriving instance Functor ArgDescr
-
 data UserOpt a
     = Help
     | Version
     | User a
+
 instance Eq (UserOpt a) where
     Help    == Help     = True
     Version == Version  = True
