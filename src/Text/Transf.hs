@@ -101,8 +101,8 @@ post = Post . return
 type PrimContextT m = ErrorT String (WriterT (Post m) m)
 
 newtype ContextT m a = ContextT { runContextT_ :: PrimContextT m a }
-    deriving ( Functor, Monad, MonadIO, MonadPlus,
-        MonadError String, MonadWriter (Post m) )
+    deriving ( Functor, Monad, MonadIO, MonadPlus, Applicative, 
+      Alternative, MonadError String, MonadWriter (Post m) )
 
 -- | 
 -- The 'Context' monad defines the context of a transformation.
